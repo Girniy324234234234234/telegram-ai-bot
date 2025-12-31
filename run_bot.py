@@ -200,4 +200,6 @@ def cb(c):
     bot.answer_callback_query(c.id)
 
 # ===== RUN =====
-bot.infinity_polling()
+if __name__ == "__main__":
+    print("🚀 Bot started and polling")
+    bot.infinity_polling(skip_pending=True)
