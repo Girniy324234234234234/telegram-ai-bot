@@ -1,18 +1,22 @@
+import os
 import telebot, time, re, sqlite3
 from datetime import datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import BOT_TOKEN
 from states import SurveyState
 from openai_client import ask_openai
 
-# ================== CONFIG ==================
+# ===== ENV =====
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN is missing")
+
 ADMIN_ID = 1987556406
 DB_FILE = "bot.db"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 print("🚀 Bot started")
 
-# ================== DATABASE ==================
+# ===== DATABASE =====
 conn = sqlite3.connect(DB_FILE, check_same_thread=False)
 cursor = conn.cursor()
 
@@ -42,14 +46,13 @@ CREATE TABLE IF NOT EXISTS memory (
 
 conn.commit()
 
-# ================== STATE ==================
+# ===== STATE =====
 user_state = {}
 user_data = {}
 last_request = {}
 
 THANK_WORDS = ["спасибо", "thanks", "thank you", "thx"]
 
-# ================== TEXTS ==================
 TEXTS = {
     "ru": {
         "welcome": "👋 Привет! Напиши /survey",
@@ -73,7 +76,7 @@ TEXTS = {
     }
 }
 
-# ================== HELPERS ==================
+# ===== HELPERS =====
 def detect_language(text):
     return "ru" if re.search(r"[а-яА-Я]", text) else "en"
 
@@ -83,10 +86,7 @@ def get_lang(uid, text):
     if row:
         return row[0]
     lang = detect_language(text)
-    cursor.execute(
-        "INSERT INTO users VALUES (?, ?, ?)",
-        (uid, None, lang)
-    )
+    cursor.execute("INSERT INTO users VALUES (?, ?, ?)", (uid, None, lang))
     conn.commit()
     return lang
 
@@ -116,7 +116,7 @@ def save_memory(uid, history):
 def t(lang, key):
     return TEXTS[lang][key]
 
-# ================== KEYBOARD ==================
+# ===== KEYBOARD =====
 def idea_kb():
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
@@ -126,7 +126,7 @@ def idea_kb():
     )
     return kb
 
-# ================== COMMANDS ==================
+# ===== COMMANDS =====
 @bot.message_handler(commands=["start"])
 def start(m):
     lang = get_lang(m.from_user.id, "")
@@ -138,7 +138,7 @@ def survey(m):
     lang = get_lang(m.from_user.id, "")
     bot.send_message(m.chat.id, t(lang, "mood"))
 
-# ================== MAIN ==================
+# ===== MAIN =====
 @bot.message_handler(func=lambda m: True)
 def handler(m):
     uid = m.from_user.id
@@ -182,6 +182,7 @@ def handler(m):
         if time.time() - last_request.get(uid, 0) < 5:
             bot.send_message(uid, t(lang, "wait"))
             return
+
         last_request[uid] = time.time()
 
         history = get_memory(uid)
@@ -191,13 +192,12 @@ def handler(m):
         answer = ask_openai(profile, text, "friend", history, lang)
         bot.send_message(uid, answer, reply_markup=idea_kb())
 
-# ================== CALLBACKS ==================
+# ===== CALLBACKS =====
 @bot.callback_query_handler(func=lambda c: True)
 def cb(c):
     if c.data == "language":
         bot.send_message(c.from_user.id, "Language auto-detect enabled 🌍")
     bot.answer_callback_query(c.id)
 
-# ================== RUN ==================
-if __name__ == "__main__":
-    bot.infinity_polling()
+# ===== RUN =====
+bot.infinity_polling()
