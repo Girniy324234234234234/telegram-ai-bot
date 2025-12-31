@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+bot/venv/
+
+# Environment
+.env
+
+# Databases
+*.db
+
+# Logs
+*.log
+
+# Other projects
+idea_bot_full/
+sdsd/
