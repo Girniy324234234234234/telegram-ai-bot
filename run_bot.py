@@ -57,60 +57,77 @@ last_request = {}
 
 THANK_WORDS = ["спасибо"]
 
+# ===== TEXTS =====
 TEXTS = {
     "ru": {
         "welcome": (
             "👋 Добро пожаловать в *Astro AI Bot*\n\n"
-            "🤖 Я умный Telegram-бот.\n\n"
-            "👇 Используй команды:\n"
-            "/survey — пройти анкету\n"
-            "/help — помощь"
+            "🤖 Я умный Telegram-бот.\n"
+            "Помогаю с анкетированием и AI-ответами.\n\n"
+            "👇 Используй команды ниже"
         ),
+
         "help": (
-            "📌 *Команды:*\n\n"
-            "/start — главное меню\n"
-            "/survey — анкетирование\n"
-            "/creator — о создателе\n"
-            "/donate — поддержка\n"
-            "/help — помощь"
+            "📌 *Доступные команды:*\n\n"
+            "/start — Главное меню\n"
+            "/survey — Пройти анкетирование\n"
+            "/creator — О создателе\n"
+            "/donate — Поддержать проект\n"
+            "/affiliate — Партнёрская программа\n"
+            "/status — Статус использования\n"
+            "/help — Помощь"
         ),
-        "creator": "👨‍💻 Создатель: @astroanvt",
-        "donate": "💖 Поддержка проекта: USDT TRC20\nTR7pwMfXWtT7jcJcnzzpipCXycXAfn3BDQ",
-        "mood": "🙂 Какое у тебя настроение?",
+
+        "creator": (
+            "👨‍💻 *Создатель проекта*\n\n"
+            "Проект разработан @astroanvt\n"
+            "AI и автоматизация"
+        ),
+
+        "donate": (
+            "💖 *Поддержка проекта*\n\n"
+            "USDT TRC20:\n"
+            "`TR7pwMfXWtT7jcJcnzzpipCXycXAfn3BDQ`"
+        ),
+
+        "affiliate": (
+            "🤝 *Партнёрская программа*\n\n"
+            "Приглашай друзей и получай бонусы.\n"
+            "Реферальная система будет добавлена позже."
+        ),
+
+        "status": (
+            "📊 *Статус использования*\n\n"
+            "Статус: бесплатно\n"
+            "Лимиты: без ограничений"
+        ),
+
+        "mood": "🙂 Какое у тебя сейчас настроение?",
         "time": "⏱ Сколько у тебя есть свободного времени?",
         "interests": "🎯 Какие у тебя интересы?",
-        "limits": "⚠️ Есть ли ограничения?",
-        "ask": "✍️ Напиши свой запрос 👇",
-        "wait": "⏳ Думаю...",
+        "limits": "⚠️ Есть ли ограничения или пожелания?",
+        "ask": "✍️ Теперь напиши свой запрос 👇",
+        "wait": "⏳ Подожди немного, я думаю…",
         "bye": "🙏 Рад был помочь!"
-"affiliate": (
-    "🤝 Партнёрская программа\n\n"
-    "Приглашай друзей и получай бонусы.\n"
-    "Реферальная система будет добавлена позже."
-),
-
-"status": (
-    "📊 Статус использования\n\n"
-    "Текущий статус: бесплатно\n"
-    "Лимиты: без ограничений."
-),
-
+    }
 }
 
 # ===== HELPERS =====
+def detect_language(text: str) -> str:
+    return "ru"
+
 def get_lang(uid, text):
     cursor.execute("SELECT language FROM users WHERE telegram_id=?", (uid,))
     row = cursor.fetchone()
     if row:
         return row[0]
-
+    lang = "ru"
     cursor.execute(
-        "INSERT INTO users VALUES (?, ?, ?)",
-        (uid, None, "ru")
+        "INSERT OR REPLACE INTO users VALUES (?, ?, ?)",
+        (uid, None, lang)
     )
     conn.commit()
-    return "ru"
-
+    return lang
 
 def save_message(uid, text):
     cursor.execute(
@@ -118,7 +135,6 @@ def save_message(uid, text):
         (uid, text, datetime.now().isoformat())
     )
     conn.commit()
-
 
 def get_memory(uid):
     cursor.execute("SELECT history FROM memory WHERE telegram_id=?", (uid,))
@@ -129,7 +145,6 @@ def get_memory(uid):
         return []
     return row[0].split("|") if row[0] else []
 
-
 def save_memory(uid, history):
     cursor.execute(
         "UPDATE memory SET history=? WHERE telegram_id=?",
@@ -137,62 +152,42 @@ def save_memory(uid, history):
     )
     conn.commit()
 
-
 def t(lang, key):
-    return TEXTS["ru"][key]
-
+    return TEXTS["ru"].get(key, "")
 
 # ===== COMMANDS =====
 @bot.message_handler(commands=["start"])
-def start(m):
+def cmd_start(m):
     bot.send_message(m.chat.id, t("ru", "welcome"), parse_mode="Markdown")
 
-
 @bot.message_handler(commands=["help"])
-def help_cmd(m):
+def cmd_help(m):
     bot.send_message(m.chat.id, t("ru", "help"), parse_mode="Markdown")
 
-
 @bot.message_handler(commands=["creator"])
-def creator_cmd(m):
-    bot.send_message(m.chat.id, t("ru", "creator"))
-
+def cmd_creator(m):
+    bot.send_message(m.chat.id, t("ru", "creator"), parse_mode="Markdown")
 
 @bot.message_handler(commands=["donate"])
-def donate_cmd(m):
-    bot.send_message(m.chat.id, t("ru", "donate"))
+def cmd_donate(m):
+    bot.send_message(m.chat.id, t("ru", "donate"), parse_mode="Markdown")
 
+@bot.message_handler(commands=["affiliate"])
+def cmd_affiliate(m):
+    bot.send_message(m.chat.id, t("ru", "affiliate"), parse_mode="Markdown")
+
+@bot.message_handler(commands=["status"])
+def cmd_status(m):
+    bot.send_message(m.chat.id, t("ru", "status"), parse_mode="Markdown")
 
 @bot.message_handler(commands=["survey"])
-def survey(m):
+def cmd_survey(m):
     user_state[m.from_user.id] = SurveyState.MOOD
     bot.send_message(m.chat.id, t("ru", "mood"))
 
-
-@bot.message_handler(commands=["affiliate"])
-def affiliate_cmd(m):
-    uid = m.from_user.id
-    lang = get_lang(uid, "")
-    text = t(lang, "affiliate").format(uid=uid)
-    bot.send_message(m.chat.id, text, parse_mode="Markdown")
-
-
-@bot.message_handler(commands=["status"])
-def status_cmd(m):
-    uid = m.from_user.id
-    lang = get_lang(uid, "")
-    bot.send_message(
-        m.chat.id,
-        t(lang, "status"),
-        parse_mode="Markdown"
-    )
-
 # ===== MAIN HANDLER =====
 @bot.message_handler(func=lambda m: True)
-def handler(m):
-    if m.text.startswith("/"):
-        return
-
+def main_handler(m):
     uid = m.from_user.id
     text = m.text.strip()
 
@@ -227,7 +222,7 @@ def handler(m):
     else:
         profile = user_data.get(uid)
         if not profile:
-            bot.send_message(uid, t("ru", "welcome"))
+            bot.send_message(uid, t("ru", "welcome"), parse_mode="Markdown")
             return
 
         if time.time() - last_request.get(uid, 0) < 5:
@@ -240,5 +235,6 @@ def handler(m):
         history.append(text)
         save_memory(uid, history)
 
-        answer = ask_openai(profile, text, "friend", history, "ru")
+        answer = ask_openai(profile, text, "friend", history)
         bot.send_message(uid, answer)
+
