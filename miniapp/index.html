@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Sticker Generator</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #fff;
+            text-align: center;
+            padding: 40px;
+        }
+        button {
+            background: #22c55e;
+            border: none;
+            padding: 15px 25px;
+            font-size: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🎨 Sticker Generator</h1>
+<p id="user">Загрузка...</p>
+
+<button onclick="create()">Создать стикер</button>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    const user = tg.initDataUnsafe?.user;
+
+    if (user) {
+        document.getElementById("user").innerText =
+            `Ты: @${user.username || "без_ника"} (ID: ${user.id})`;
+    } else {
+        document.getElementById("user").innerText =
+            "❌ Открой это через Telegram";
+    }
+
+    function create() {
+        alert("➡️ Здесь будет генерация стикера");
+    }
+</script>
+
+</body>
+</html>
