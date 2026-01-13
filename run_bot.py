@@ -151,7 +151,6 @@ TEXTS = {
     "bye": "🙏 Glad I could help. Good luck!"
 }
 
-}
 
 # ===== HELPERS =====
 def detect_language(text):
