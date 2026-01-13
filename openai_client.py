@@ -9,27 +9,19 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def ask_openai(profile, user_message, mode="friend", history=None, language="auto"):
+def ask_openai(profile, user_message, mode="friend", history=None):
     styles = {
-        "friend": "Be friendly and helpful.",
-        "expert": "Be an expert, clear and helpful.",
-        "short": "Answer briefly and to the point."
+        "friend": "Отвечай дружелюбно и понятно.",
+        "expert": "Отвечай как эксперт, чётко и по делу.",
+        "short": "Отвечай кратко и по существу."
     }
 
-    if language == "ru":
-        lang_rule = (
-            "Answer ONLY in Russian. "
-            "Do NOT use English words, phrases, or sentences."
-        )
-    elif language == "en":
-        lang_rule = (
-            "Answer ONLY in English. "
-            "Do NOT use Russian words, phrases, or sentences."
-        )
-    else:
-        lang_rule = (
-            "Answer strictly in the same language as the user's last message."
-        )
+    # 🔴 ЖЁСТКОЕ ПРАВИЛО — ТОЛЬКО РУССКИЙ
+    lang_rule = (
+        "Отвечай ИСКЛЮЧИТЕЛЬНО на русском языке. "
+        "Не используй английские слова, фразы или предложения. "
+        "Даже если пользователь пишет на другом языке — отвечай по-русски."
+    )
 
     system_prompt = (
         build_prompt(profile)
