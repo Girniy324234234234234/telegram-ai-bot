@@ -1,7 +1,7 @@
 import os
 import telebot, time, re, sqlite3
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from states import SurveyState
 from openai_client import ask_openai
 
@@ -54,26 +54,103 @@ last_request = {}
 THANK_WORDS = ["спасибо", "thanks", "thank you", "thx"]
 
 TEXTS = {
-    "ru": {
-        "welcome": "👋 Привет! Напиши /survey",
-        "mood": "Какое у тебя настроение?",
-        "time": "Сколько у тебя времени?",
-        "interests": "Интересы?",
-        "limits": "Ограничения?",
-        "ask": "Теперь напиши запрос 👇",
-        "wait": "⏳ Подожди немного",
-        "bye": "🙏 Рад был помочь. Удачи!"
+"ru": {
+    "welcome": (
+        "👋 Добро пожаловать в *Astro AI Bot*\n\n"
+        "🤖 Я — умный Telegram-бот, который помогает:\n"
+        "• проходить анкетирование\n"
+        "• получать персональные AI-ответы\n"
+        "• создавать идеи и решения\n\n"
+        "👇 Используй команды ниже, чтобы начать"
+    ),
+
+    "help": (
+        "📌 *Доступные команды:*\n\n"
+        "/start — Главное меню\n"
+        "/survey — Пройти анкетирование\n"
+        "/creator — О создателе проекта\n"
+        "/donate — Поддержать проект\n"
+        "/help — Помощь и описание команд\n\n"
+        "Если не знаешь с чего начать — нажми /survey"
+    ),
+
+    "creator": (
+        "👨‍💻 *Создатель проекта*\n\n"
+        "Проект разработан энтузиастом @astroanvt\n"
+        "в сфере AI и автоматизации.\n\n"
+        "Telegram: @astroanvt\n\n"
+        "Instagram: @3.morozz.3\n\n"
+        "Discord: @sunguys\n\n"
+    ),
+
+    "donate": (
+        "💖 *Поддержать проект*\n\n"
+        "Если бот оказался полезным — ты можешь\n"
+        "поддержать его развитие.\n\n"
+        "🔧 Новые функции\n"
+        "⚡ Улучшение AI\n"
+        "📈 Развитие проекта\n\n"
+        "Способы поддержки (USDT TRC20) - TR7pwMfXWtT7jcJcnzzpipCXycXAfn3BDQ 🙏"
+    ),
+
+    "mood": "🙂 Какое у тебя сейчас настроение?",
+    "time": "⏱ Сколько у тебя есть свободного времени?",
+    "interests": "🎯 Какие у тебя интересы?",
+    "limits": "⚠️ Есть ли ограничения или пожелания?",
+    "ask": "✍️ Теперь напиши свой запрос 👇",
+    "wait": "⏳ Подожди немного, я думаю…",
+    "bye": "🙏 Рад был помочь. Удачи!"
+}
+
     },
-    "en": {
-        "welcome": "👋 Hi! Type /survey",
-        "mood": "How do you feel?",
-        "time": "How much time do you have?",
-        "interests": "Your interests?",
-        "limits": "Any limits?",
-        "ask": "Now type your request 👇",
-        "wait": "⏳ Please wait",
-        "bye": "🙏 Glad to help. Take care!"
-    }
+"en": {
+    "welcome": (
+        "👋 Welcome to *Astro AI Bot*\n\n"
+        "🤖 I am a smart Telegram bot that helps you:\n"
+        "• complete surveys\n"
+        "• receive personalized AI responses\n"
+        "• generate ideas and solutions\n\n"
+        "👇 Use the commands below to get started"
+    ),
+
+    "help": (
+        "📌 *Available commands:*\n\n"
+        "/start — Main menu\n"
+        "/survey — Take a survey\n"
+        "/creator — About the project creator\n"
+        "/donate — Support the project\n"
+        "/help — Help and command description\n\n"
+        "If you’re not sure where to start — tap /survey"
+    ),
+
+    "creator": (
+        "👨‍💻 *Project creator*\n\n"
+        "This project is developed by an enthusiast @astroanvt\n"
+        "in the field of AI and automation.\n\n"
+        "Telegram: @astroanvt\n\n"
+        "Instagram: @3.morozz.3\n\n"
+        "Discord: @sunguys\n\n"
+    ),
+
+    "donate": (
+        "💖 *Support the project*\n\n"
+        "If you found this bot useful, you can\n"
+        "support its further development.\n\n"
+        "🔧 New features\n"
+        "⚡ AI improvements\n"
+        "📈 Project growth\n\n"
+        "Support options (USDT TRC20) — TR7pwMfXWtT7jcJcnzzpipCXycXAfn3BDQ 🙏"
+    ),
+
+    "mood": "🙂 How are you feeling right now?",
+    "time": "⏱ How much free time do you have?",
+    "interests": "🎯 What are your interests?",
+    "limits": "⚠️ Do you have any limitations or preferences?",
+    "ask": "✍️ Now write your request 👇",
+    "wait": "⏳ Please wait a moment, I’m thinking…",
+    "bye": "🙏 Glad I could help. Good luck!"
+}
+
 }
 
 # ===== HELPERS =====
@@ -116,7 +193,19 @@ def save_memory(uid, history):
 def t(lang, key):
     return TEXTS[lang][key]
 
-# ===== KEYBOARD =====
+# ===== KEYBOARDS =====
+def start_menu():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(
+        KeyboardButton("/survey"),
+        KeyboardButton("/help")
+    )
+    kb.add(
+        KeyboardButton("/creator"),
+        KeyboardButton("/donate")
+    )
+    return kb
+
 def idea_kb():
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
@@ -130,7 +219,22 @@ def idea_kb():
 @bot.message_handler(commands=["start"])
 def start(m):
     lang = get_lang(m.from_user.id, "")
-    bot.send_message(m.chat.id, t(lang, "welcome"))
+    bot.send_message(m.chat.id, t(lang, "welcome"), reply_markup=start_menu())
+
+@bot.message_handler(commands=["help"])
+def help_cmd(m):
+    lang = get_lang(m.from_user.id, "")
+    bot.send_message(m.chat.id, t(lang, "help"))
+
+@bot.message_handler(commands=["creator"])
+def creator_cmd(m):
+    lang = get_lang(m.from_user.id, "")
+    bot.send_message(m.chat.id, t(lang, "creator"))
+
+@bot.message_handler(commands=["donate"])
+def donate_cmd(m):
+    lang = get_lang(m.from_user.id, "")
+    bot.send_message(m.chat.id, t(lang, "donate"))
 
 @bot.message_handler(commands=["survey"])
 def survey(m):
@@ -138,7 +242,7 @@ def survey(m):
     lang = get_lang(m.from_user.id, "")
     bot.send_message(m.chat.id, t(lang, "mood"))
 
-# ===== MAIN =====
+# ===== MAIN HANDLER =====
 @bot.message_handler(func=lambda m: True)
 def handler(m):
     uid = m.from_user.id
@@ -176,7 +280,7 @@ def handler(m):
     else:
         profile = user_data.get(uid)
         if not profile:
-            bot.send_message(uid, t(lang, "welcome"))
+            bot.send_message(uid, t(lang, "welcome"), reply_markup=start_menu())
             return
 
         if time.time() - last_request.get(uid, 0) < 5:
@@ -196,7 +300,7 @@ def handler(m):
 @bot.callback_query_handler(func=lambda c: True)
 def cb(c):
     if c.data == "language":
-        bot.send_message(c.from_user.id, "Language auto-detect enabled 🌍")
+        bot.send_message(c.from_user.id, "🌍 Language auto-detect enabled")
     bot.answer_callback_query(c.id)
 
 # ===== RUN =====
