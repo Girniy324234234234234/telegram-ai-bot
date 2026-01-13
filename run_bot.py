@@ -302,7 +302,3 @@ def cb(c):
     if c.data == "language":
         bot.send_message(c.from_user.id, "🌍 Language auto-detect enabled")
     bot.answer_callback_query(c.id)
-
-# ===== RUN =====
-if __name__ == "__main__":
-    print("🚀 Bot started and polling")
