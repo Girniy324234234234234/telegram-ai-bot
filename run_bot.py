@@ -213,8 +213,3 @@ def handler(m):
 
         answer = ask_openai(profile, text, "friend", history, "ru")
         bot.send_message(uid, answer)
-
-
-# ===== RUN =====
-if __name__ == "__main__":
-    bot.infinity_polling(skip_pending=True)
