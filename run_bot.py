@@ -237,15 +237,16 @@ def main_handler(m):
 
         answer = ask_openai(profile, text, "friend", history)
         bot.send_message(uid, answer)
-        @bot.message_handler(content_types=["web_app_data"])
-def web_app_handler(m):
-    uid = m.from_user.id
-    prompt = m.web_app_data.data
+@bot.message_handler(content_types=["web_app_data"])
+def web_app_handler(message):
+    uid = message.from_user.id
+    data = message.web_app_data.data
+
+    print("WEB APP DATA:", data)
 
     bot.send_message(
         uid,
-        f"🎨 Запрос на стикер принят:\n\n{prompt}\n\n⏳ Генерирую..."
+        f"🎨 Запрос получен:\n\n{data}\n\n⏳ Генерирую стикер..."
     )
 
-    # позже сюда добавим генерацию картинки
 
