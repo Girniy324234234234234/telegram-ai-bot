@@ -2,9 +2,11 @@ import os
 import time
 import re
 import sqlite3
-import telebot
 from datetime import datetime
+
+import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 from states import SurveyState
 from openai_client import ask_openai
 
@@ -13,10 +15,9 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is missing")
 
-ADMIN_ID = 1987556406
 DB_FILE = "bot.db"
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
+bot = telebot.TeleBot(BOT_TOKEN)
 print("🚀 Bot started")
 
 # ===== DATABASE =====
@@ -49,89 +50,64 @@ CREATE TABLE IF NOT EXISTS memory (
 
 conn.commit()
 
-# ===== TEXTS =====
+# ===== STATE =====
+user_state = {}
+user_data = {}
+last_request = {}
+
+THANK_WORDS = ["спасибо"]
+
 TEXTS = {
     "ru": {
         "welcome": (
             "👋 Добро пожаловать в *Astro AI Bot*\n\n"
-            "🤖 Я — умный Telegram-бот, который помогает:\n"
-            "• проходить анкетирование\n"
-            "• получать персональные AI-ответы\n"
-            "• создавать идеи и решения\n\n"
-            "👇 Используй команды ниже, чтобы начать"
+            "🤖 Я умный Telegram-бот.\n\n"
+            "👇 Используй команды:\n"
+            "/survey — пройти анкету\n"
+            "/help — помощь"
         ),
         "help": (
-            "📌 *Доступные команды:*\n\n"
-            "/start — Главное меню\n"
-            "/survey — Пройти анкетирование\n"
-            "/creator — О создателе проекта\n"
-            "/donate — Поддержать проект\n"
-            "/help — Помощь\n"
+            "📌 *Команды:*\n\n"
+            "/start — главное меню\n"
+            "/survey — анкетирование\n"
+            "/creator — о создателе\n"
+            "/donate — поддержка\n"
+            "/help — помощь"
         ),
-        "creator": (
-            "👨‍💻 *Создатель проекта*\n\n"
-            "Проект разработан @astroanvt\n"
-            "в сфере AI и автоматизации."
-        ),
-        "donate": (
-            "💖 *Поддержать проект*\n\n"
-            "USDT TRC20:\n"
-            "`TR7pwMfXWtT7jcJcnzzpipCXycXAfn3BDQ`"
-        ),
+        "creator": "👨‍💻 Создатель: @astroanvt",
+        "donate": "💖 Поддержка проекта: USDT TRC20\nTR7pwMfXWtT7jcJcnzzpipCXycXAfn3BDQ",
         "mood": "🙂 Какое у тебя настроение?",
-        "time": "⏱ Сколько у тебя есть времени?",
+        "time": "⏱ Сколько у тебя есть свободного времени?",
         "interests": "🎯 Какие у тебя интересы?",
         "limits": "⚠️ Есть ли ограничения?",
-        "ask": "✍️ Напиши свой запрос",
+        "ask": "✍️ Напиши свой запрос 👇",
         "wait": "⏳ Думаю...",
         "bye": "🙏 Рад был помочь!"
-    },
-
-    "en": {
-        "welcome": (
-            "👋 Welcome to *Astro AI Bot*\n\n"
-            "🤖 I am a smart Telegram bot that helps you:\n"
-            "• complete surveys\n"
-            "• get AI-powered answers\n"
-            "• generate ideas and solutions\n\n"
-            "👇 Use the commands below to get started"
-        ),
-        "help": (
-            "📌 *Available commands:*\n\n"
-            "/start — Main menu\n"
-            "/survey — Take a survey\n"
-            "/creator — About the creator\n"
-            "/donate — Support the project\n"
-            "/help — Help\n"
-        ),
-        "creator": (
-            "👨‍💻 *Project creator*\n\n"
-            "Created by @astroanvt\n"
-            "AI & automation enthusiast."
-        ),
-        "donate": (
-            "💖 *Support the project*\n\n"
-            "USDT TRC20:\n"
-            "`TR7pwMfXWtT7jcJcnzzpipCXycXAfn3BDQ`"
-        ),
-        "mood": "🙂 How do you feel?",
-        "time": "⏱ How much time do you have?",
-        "interests": "🎯 Your interests?",
-        "limits": "⚠️ Any limitations?",
-        "ask": "✍️ Type your request",
-        "wait": "⏳ Thinking...",
-        "bye": "🙏 Glad to help!"
     }
 }
 
-THANK_WORDS = ["спасибо", "thanks", "thank you", "thx"]
-
 # ===== HELPERS =====
 def get_lang(uid, text):
+    cursor.execute("SELECT language FROM users WHERE telegram_id=?", (uid,))
+    row = cursor.fetchone()
+    if row:
+        return row[0]
+
+    cursor.execute(
+        "INSERT INTO users VALUES (?, ?, ?)",
+        (uid, None, "ru")
+    )
+    conn.commit()
     return "ru"
 
-def t(lang, key):
-    return TEXTS.get(lang, TEXTS["en"]).get(key, "")
+
+def save_message(uid, text):
+    cursor.execute(
+        "INSERT INTO messages (telegram_id, text, created_at) VALUES (?, ?, ?)",
+        (uid, text, datetime.now().isoformat())
+    )
+    conn.commit()
+
 
 def get_memory(uid):
     cursor.execute("SELECT history FROM memory WHERE telegram_id=?", (uid,))
@@ -142,6 +118,7 @@ def get_memory(uid):
         return []
     return row[0].split("|") if row[0] else []
 
+
 def save_memory(uid, history):
     cursor.execute(
         "UPDATE memory SET history=? WHERE telegram_id=?",
@@ -149,47 +126,51 @@ def save_memory(uid, history):
     )
     conn.commit()
 
+
+def t(lang, key):
+    return TEXTS["ru"][key]
+
+
 # ===== COMMANDS =====
 @bot.message_handler(commands=["start"])
-def start_cmd(m):
-    lang = get_lang(m.from_user.id, "")
-    bot.send_message(m.chat.id, t(lang, "welcome"))
+def start(m):
+    bot.send_message(m.chat.id, t("ru", "welcome"), parse_mode="Markdown")
+
 
 @bot.message_handler(commands=["help"])
 def help_cmd(m):
-    lang = get_lang(m.from_user.id, "")
-    bot.send_message(m.chat.id, t(lang, "help"))
+    bot.send_message(m.chat.id, t("ru", "help"), parse_mode="Markdown")
+
 
 @bot.message_handler(commands=["creator"])
 def creator_cmd(m):
-    lang = get_lang(m.from_user.id, "")
-    bot.send_message(m.chat.id, t(lang, "creator"))
+    bot.send_message(m.chat.id, t("ru", "creator"))
+
 
 @bot.message_handler(commands=["donate"])
 def donate_cmd(m):
-    lang = get_lang(m.from_user.id, "")
-    bot.send_message(m.chat.id, t(lang, "donate"))
+    bot.send_message(m.chat.id, t("ru", "donate"))
+
 
 @bot.message_handler(commands=["survey"])
-def survey_cmd(m):
+def survey(m):
     user_state[m.from_user.id] = SurveyState.MOOD
-    lang = get_lang(m.from_user.id, "")
-    bot.send_message(m.chat.id, t(lang, "mood"))
+    bot.send_message(m.chat.id, t("ru", "mood"))
 
-# ===== STATE =====
-user_state = {}
-user_data = {}
-last_request = {}
 
 # ===== MAIN HANDLER =====
 @bot.message_handler(func=lambda m: True)
 def handler(m):
+    if m.text.startswith("/"):
+        return
+
     uid = m.from_user.id
     text = m.text.strip()
-    lang = get_lang(uid, text)
+
+    save_message(uid, text)
 
     if any(w in text.lower() for w in THANK_WORDS):
-        bot.send_message(uid, t(lang, "bye"))
+        bot.send_message(uid, t("ru", "bye"))
         return
 
     state = user_state.get(uid)
@@ -197,42 +178,43 @@ def handler(m):
     if state == SurveyState.MOOD:
         user_data.setdefault(uid, {})["mood"] = text
         user_state[uid] = SurveyState.TIME
-        bot.send_message(uid, t(lang, "time"))
+        bot.send_message(uid, t("ru", "time"))
 
     elif state == SurveyState.TIME:
         user_data[uid]["time"] = text
         user_state[uid] = SurveyState.INTERESTS
-        bot.send_message(uid, t(lang, "interests"))
+        bot.send_message(uid, t("ru", "interests"))
 
     elif state == SurveyState.INTERESTS:
         user_data[uid]["interests"] = text
         user_state[uid] = SurveyState.LIMITS
-        bot.send_message(uid, t(lang, "limits"))
+        bot.send_message(uid, t("ru", "limits"))
 
     elif state == SurveyState.LIMITS:
         user_data[uid]["limits"] = text
         user_state[uid] = None
-        bot.send_message(uid, t(lang, "ask"))
+        bot.send_message(uid, t("ru", "ask"))
 
     else:
         profile = user_data.get(uid)
         if not profile:
-            bot.send_message(uid, t(lang, "welcome"))
+            bot.send_message(uid, t("ru", "welcome"))
             return
 
         if time.time() - last_request.get(uid, 0) < 5:
-            bot.send_message(uid, t(lang, "wait"))
+            bot.send_message(uid, t("ru", "wait"))
             return
 
         last_request[uid] = time.time()
+
         history = get_memory(uid)
         history.append(text)
         save_memory(uid, history)
 
-        answer = ask_openai(profile, text, "friend", history, lang)
+        answer = ask_openai(profile, text, "friend", history, "ru")
         bot.send_message(uid, answer)
+
 
 # ===== RUN =====
 if __name__ == "__main__":
-    print("🚀 Polling started")
     bot.infinity_polling(skip_pending=True)
