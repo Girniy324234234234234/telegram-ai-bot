@@ -127,18 +127,8 @@ TEXTS = {
 THANK_WORDS = ["спасибо", "thanks", "thank you", "thx"]
 
 # ===== HELPERS =====
-def detect_language(text):
-    return "ru" if re.search(r"[а-яА-Я]", text) else "en"
-
 def get_lang(uid, text):
-    cursor.execute("SELECT language FROM users WHERE telegram_id=?", (uid,))
-    row = cursor.fetchone()
-    if row:
-        return row[0]
-    lang = detect_language(text)
-    cursor.execute("INSERT INTO users VALUES (?, ?, ?)", (uid, None, lang))
-    conn.commit()
-    return lang
+    return "ru"
 
 def t(lang, key):
     return TEXTS.get(lang, TEXTS["en"]).get(key, "")
