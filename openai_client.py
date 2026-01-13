@@ -15,12 +15,20 @@ def ask_openai(profile, user_message, mode="friend", memory=None, language="auto
         "short": "Be максимально кратким."
     }
 
-    if language == "ru":
-        lang_rule = "Answer ONLY in Russian."
-    elif language == "en":
-        lang_rule = "Answer ONLY in English."
-    else:
-        lang_rule = "Answer in the same language as the user."
+if language == "ru":
+    lang_rule = (
+        "Answer ONLY in Russian. "
+        "Do NOT use English words, phrases, or sentences."
+    )
+elif language == "en":
+    lang_rule = (
+        "Answer ONLY in English. "
+        "Do NOT use Russian words, phrases, or sentences."
+    )
+else:
+    lang_rule = (
+        "Answer strictly in the same language as the user's last message."
+    )
 
     system_prompt = (
         build_prompt(profile)
