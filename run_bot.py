@@ -158,6 +158,24 @@ def survey(m):
     bot.send_message(m.chat.id, t("ru", "mood"))
 
 
+@bot.message_handler(commands=["affiliate"])
+def affiliate_cmd(m):
+    uid = m.from_user.id
+    lang = get_lang(uid, "")
+    text = t(lang, "affiliate").format(uid=uid)
+    bot.send_message(m.chat.id, text, parse_mode="Markdown")
+
+
+@bot.message_handler(commands=["status"])
+def status_cmd(m):
+    uid = m.from_user.id
+    lang = get_lang(uid, "")
+    bot.send_message(
+        m.chat.id,
+        t(lang, "status"),
+        parse_mode="Markdown"
+    )
+
 # ===== MAIN HANDLER =====
 @bot.message_handler(func=lambda m: True)
 def handler(m):
