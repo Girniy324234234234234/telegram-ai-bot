@@ -306,4 +306,3 @@ def cb(c):
 # ===== RUN =====
 if __name__ == "__main__":
     print("🚀 Bot started and polling")
-    bot.infinity_polling(skip_pending=True)
