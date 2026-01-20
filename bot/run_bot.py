@@ -7,8 +7,8 @@ from datetime import datetime
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from states import SurveyState
-from openai_client import ask_openai
+from bot.states import SurveyState
+from bot.openai_client import ask_openai
 
 # ===== ENV =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
