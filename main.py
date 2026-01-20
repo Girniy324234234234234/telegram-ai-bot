@@ -2,7 +2,7 @@ import threading
 import os
 
 # --- импорт твоих файлов ---
-from run_bot import bot   # твой Telegram-бот
+from bot.run_bot import bot   # твой Telegram-бот
 from web_app import app   # твой Flask app
 
 # --- запуск Telegram-бота ---
