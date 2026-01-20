@@ -1,6 +1,6 @@
 import os
 from openai import OpenAI
-from prompts import build_prompt
+from bot.prompts import build_prompt
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
