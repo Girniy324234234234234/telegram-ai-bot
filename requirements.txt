@@ -4,3 +4,4 @@ python-dotenv==1.2.1
 psycopg2-binary==2.9.9
 flask
 requests
+pillow
