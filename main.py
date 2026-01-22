@@ -10,8 +10,13 @@ def run_bot():
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
-    print(f"🌐 Starting Flask on port {port}")
-    app.run(host="0.0.0.0", port=port)
+    print(f"🚀 Starting Flask on port {port}")
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False,
+        use_reloader=False
+    )
 
 if __name__ == "__main__":
     t1 = threading.Thread(target=run_bot)
