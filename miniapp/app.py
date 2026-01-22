@@ -57,8 +57,8 @@ result = client.responses.create(
 image_base64 = result.output[0].content[0].image_base64
 
 
-    filename = f"{uuid.uuid4()}.png"
-    path = os.path.join(GENERATED_DIR, filename)
+filename = f"{uuid.uuid4()}.png"
+path = os.path.join(GENERATED_DIR, filename)
 
     with open(path, "wb") as f:
         f.write(image_bytes)
