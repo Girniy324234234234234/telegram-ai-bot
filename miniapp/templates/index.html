@@ -1,26 +1,71 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Sticker Generator</title>
+  <meta charset="UTF-8">
+  <title>Sticker Generator</title>
 
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    body {
+      background: #0f0f0f;
+      color: white;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    button {
+      margin-top: 15px;
+      padding: 15px;
+      width: 100%;
+      border-radius: 10px;
+      border: none;
+      background: #6c5ce7;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
 </head>
+
 <body>
+  <h2>🎨 Генерация стикера</h2>
 
-<div class="container">
-    <h2>🎨 Sticker Generator</h2>
+  <textarea
+    id="prompt"
+    placeholder="Например: кот в космосе, мультяшный стиль"
+  ></textarea>
 
-    <textarea id="prompt" placeholder="Опиши стикер..."></textarea>
+  <button onclick="generate()">✨ Сгенерировать</button>
 
-    <input type="file" id="photo" accept="image/*">
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
 
-    <button onclick="sendData()">Создать стикер</button>
+    function generate() {
+      const prompt = document.getElementById("prompt").value;
 
-    <p id="status"></p>
-</div>
+      if (!prompt.trim()) {
+        alert("Введите описание");
+        return;
+      }
 
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+      tg.sendData(JSON.stringify({
+        type: "sticker",
+        prompt: prompt
+      }));
+
+      tg.close();
+    }
+  </script>
 </body>
 </html>
