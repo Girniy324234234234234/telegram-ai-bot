@@ -57,7 +57,7 @@ try:
 except Exception as e:
     return jsonify({"error": str(e)}), 500
 
-    image_base64 = result.data[0].b64_json
+    image_base64 = result.output[0].content[0].image_base64
     image_bytes = base64.b64decode(image_base64)
 
     filename = f"{uuid.uuid4()}.png"
