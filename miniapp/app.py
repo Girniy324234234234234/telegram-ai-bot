@@ -1,10 +1,12 @@
 import os
 import uuid
 import base64
+
 from flask import Flask, render_template, request, jsonify
 from openai import OpenAI
 
-# ===== CONFIG =====
+# ================= CONFIG =================
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY is missing")
@@ -20,7 +22,7 @@ app = Flask(
 GENERATED_DIR = "miniapp/static/generated"
 os.makedirs(GENERATED_DIR, exist_ok=True)
 
-# ===== ROUTES =====
+# ================= ROUTES =================
 
 @app.route("/")
 def index():
@@ -45,14 +47,15 @@ White or transparent background.
 """
 
     try:
-result = client.images.generate(
-    model="gpt-image-1",
-    prompt=prompt,
-    size="512x512"
-)
+        result = client.images.generate(
+            model="gpt-image-1",
+            prompt=prompt,
+            size="512x512"
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-image_base64 = result.data[0].b64_json
-
+    image_base64 = result.data[0].b64_json
     image_bytes = base64.b64decode(image_base64)
 
     filename = f"{uuid.uuid4()}.png"
