@@ -45,14 +45,17 @@ Subject: {text}
 White or transparent background.
 """
 
-    try:
-        result = client.images.generate(
-            model="gpt-image-1",
-            prompt=prompt,
-            size="512x512"
-        )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+try:
+    result = client.responses.create(
+        model="gpt-4.1",
+        input=prompt,
+        modalities=["image"],
+        image={
+            "size": "512x512"
+        }
+    )
+except Exception as e:
+    return jsonify({"error": str(e)}), 500
 
     image_base64 = result.data[0].b64_json
     image_bytes = base64.b64decode(image_base64)
