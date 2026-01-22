@@ -1,14 +1,27 @@
-from flask import Flask, render_template, request, jsonify
-from PIL import Image, ImageDraw
-import uuid
 import os
+import uuid
+import base64
+from flask import Flask, render_template, request, jsonify
+from openai import OpenAI
 
-app = Flask(__name__)
+# ===== CONFIG =====
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY is missing")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+app = Flask(
+    __name__,
+    template_folder="templates",
+    static_folder="static"
+)
 
 GENERATED_DIR = "miniapp/static/generated"
 os.makedirs(GENERATED_DIR, exist_ok=True)
 
 
+# ===== ROUTES =====
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -16,17 +29,34 @@ def index():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    text = request.json.get("text", "").strip()
+    data = request.get_json(force=True)
+    text = data.get("text", "").strip()
+
     if not text:
         return jsonify({"error": "empty text"}), 400
 
-    img = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    draw.text((40, 230), text[:20], fill="white")
+    prompt = f"""
+Sticker for Telegram.
+Style: cute, bold, cartoon, high contrast.
+No text on image.
+Idea: {text}
+White or transparent background.
+"""
+
+    result = client.images.generate(
+        model="gpt-image-1",
+        prompt=prompt,
+        size="512x512"
+    )
+
+    image_base64 = result.data[0].b64_json
+    image_bytes = base64.b64decode(image_base64)
 
     filename = f"{uuid.uuid4()}.png"
     path = os.path.join(GENERATED_DIR, filename)
-    img.save(path)
+
+    with open(path, "wb") as f:
+        f.write(image_bytes)
 
     return jsonify({
         "ok": True,
