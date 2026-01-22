@@ -1,42 +1,41 @@
+<script>
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-async function sendData() {
+async function generateSticker() {
     const prompt = document.getElementById("prompt").value;
-    const fileInput = document.getElementById("photo");
     const status = document.getElementById("status");
+    const img = document.getElementById("result");
 
-    let photoBase64 = null;
-
-    if (fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        photoBase64 = await toBase64(file);
+    if (!prompt) {
+        status.innerText = "❌ Введи описание";
+        return;
     }
 
-    const payload = {
-        user_id: tg.initDataUnsafe?.user?.id || null,
-        prompt: prompt,
-        photo: photoBase64
-    };
+    status.innerText = "🎨 Генерирую стикер...";
+    img.style.display = "none";
 
-    status.innerText = "⏳ Отправка...";
+    try {
+        const res = await fetch("/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: prompt })
+        });
 
-    await fetch("/submit", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload)
-    });
+        const data = await res.json();
 
-    // 🔥 Отправляем данные боту
-    tg.sendData(JSON.stringify(payload));
-    status.innerText = "✅ Отправлено в бота";
+        if (!data.ok) {
+            status.innerText = "❌ Ошибка генерации";
+            return;
+        }
+
+        img.src = data.url + "?t=" + Date.now(); // cache bust
+        img.style.display = "block";
+        status.innerText = "✅ Стикер готов";
+
+    } catch (e) {
+        console.error(e);
+        status.innerText = "❌ Сервер недоступен";
+    }
 }
-
-function toBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-}
+</script>
