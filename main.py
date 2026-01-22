@@ -3,7 +3,7 @@ import os
 
 # --- импорт твоих файлов ---
 from bot.run_bot import bot   # твой Telegram-бот
-from web_app import app   # твой Flask app
+from miniapp import app   # твой Flask app
 
 # --- запуск Telegram-бота ---
 def run_bot():
