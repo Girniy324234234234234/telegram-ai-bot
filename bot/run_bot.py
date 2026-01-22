@@ -249,32 +249,3 @@ def main_handler(m):
 
         answer = ask_openai(profile, text, "friend", history)
         bot.send_message(uid, answer)
-        
-
-       # ===== MINI APP HANDLER =====
-import json
-import uuid
-from PIL import Image, ImageDraw
-
-@bot.message_handler(content_types=["web_app_data"])
-def web_app_handler(message):
-    uid = message.from_user.id
-
-    # данные из Mini App
-    data = json.loads(message.web_app_data.data)
-    prompt = data.get("prompt", "sticker")
-
-    bot.send_message(uid, "🎨 Генерирую стикер...")
-
-    # временный стикер (заглушка, но РЕАЛЬНЫЙ)
-    img = Image.new("RGBA", (512, 512), (108, 92, 231, 255))
-    draw = ImageDraw.Draw(img)
-    draw.text((40, 220), prompt[:20], fill="white")
-
-    filename = f"sticker_{uuid.uuid4().hex}.png"
-    img.save(filename)
-
-    with open(filename, "rb") as f:
-        bot.send_sticker(uid, f)
-
-    bot.send_message(uid, "✅ Стикер готов!")
