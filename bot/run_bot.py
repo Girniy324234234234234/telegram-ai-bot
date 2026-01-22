@@ -1,6 +1,7 @@
 import os
 import time
 import re
+import json
 import sqlite3
 from datetime import datetime
 
@@ -66,7 +67,6 @@ TEXTS = {
             "Помогаю с анкетированием и AI-ответами.\n\n"
             "👇 Используй команды ниже"
         ),
-
         "help": (
             "📌 *Доступные команды:*\n\n"
             "/start — Главное меню\n"
@@ -77,31 +77,26 @@ TEXTS = {
             "/status — Статус использования\n"
             "/help — Помощь"
         ),
-
         "creator": (
             "👨‍💻 *Создатель проекта*\n\n"
             "Проект разработан @astroanvt\n"
             "AI и автоматизация"
         ),
-
         "donate": (
             "💖 *Поддержка проекта*\n\n"
             "USDT TRC20:\n"
             "`TR7pwMfXWtT7jcJcnzzpipCXycXAfn3BDQ`"
         ),
-
         "affiliate": (
             "🤝 *Партнёрская программа*\n\n"
             "Приглашай друзей и получай бонусы.\n"
             "Реферальная система будет добавлена позже."
         ),
-
         "status": (
             "📊 *Статус использования*\n\n"
             "Статус: бесплатно\n"
             "Лимиты: без ограничений"
         ),
-
         "mood": "🙂 Какое у тебя сейчас настроение?",
         "time": "⏱ Сколько у тебя есть свободного времени?",
         "interests": "🎯 Какие у тебя интересы?",
@@ -112,23 +107,10 @@ TEXTS = {
     }
 }
 
+def t(lang, key):
+    return TEXTS["ru"].get(key, "")
+
 # ===== HELPERS =====
-def detect_language(text: str) -> str:
-    return "ru"
-
-def get_lang(uid, text):
-    cursor.execute("SELECT language FROM users WHERE telegram_id=?", (uid,))
-    row = cursor.fetchone()
-    if row:
-        return row[0]
-    lang = "ru"
-    cursor.execute(
-        "INSERT OR REPLACE INTO users VALUES (?, ?, ?)",
-        (uid, None, lang)
-    )
-    conn.commit()
-    return lang
-
 def save_message(uid, text):
     cursor.execute(
         "INSERT INTO messages (telegram_id, text, created_at) VALUES (?, ?, ?)",
@@ -151,9 +133,6 @@ def save_memory(uid, history):
         ("|".join(history), uid)
     )
     conn.commit()
-
-def t(lang, key):
-    return TEXTS["ru"].get(key, "")
 
 # ===== COMMANDS =====
 @bot.message_handler(commands=["start"])
@@ -184,6 +163,39 @@ def cmd_status(m):
 def cmd_survey(m):
     user_state[m.from_user.id] = SurveyState.MOOD
     bot.send_message(m.chat.id, t("ru", "mood"))
+
+# ===== MINI APP HANDLER (НЕ ЛОМАЕТ БОТА) =====
+@bot.message_handler(content_types=["web_app_data"])
+def web_app_handler(message):
+    uid = message.from_user.id
+
+    try:
+        data = json.loads(message.web_app_data.data)
+    except Exception:
+        bot.send_message(uid, "❌ Ошибка данных из Mini App")
+        return
+
+    if data.get("type") == "sticker":
+        prompt = data.get("prompt", "").strip()
+
+        if not prompt:
+            bot.send_message(uid, "❌ Пустое описание стикера")
+            return
+
+        bot.send_message(
+            uid,
+            f"🎨 *Генерация стикера*\n\n"
+            f"Описание:\n`{prompt}`\n\n"
+            f"⏳ Подожди немного…",
+            parse_mode="Markdown"
+        )
+
+        # 🔜 СЛЕДУЮЩИЙ ШАГ:
+        # generate_sticker(prompt, uid)
+
+        return
+
+    bot.send_message(uid, "⚠️ Неизвестный тип данных из Mini App")
 
 # ===== MAIN HANDLER =====
 @bot.message_handler(func=lambda m: True)
@@ -237,16 +249,3 @@ def main_handler(m):
 
         answer = ask_openai(profile, text, "friend", history)
         bot.send_message(uid, answer)
-@bot.message_handler(content_types=["web_app_data"])
-def web_app_handler(message):
-    uid = message.from_user.id
-    data = message.web_app_data.data
-
-    print("WEB APP DATA:", data)
-
-    bot.send_message(
-        uid,
-        f"🎨 Запрос получен:\n\n{data}\n\n⏳ Генерирую стикер..."
-    )
-
-
