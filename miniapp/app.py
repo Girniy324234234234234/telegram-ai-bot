@@ -43,14 +43,19 @@ Idea: {text}
 White or transparent background.
 """
 
-    result = client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt,
-        size="512x512"
-    )
+result = client.responses.create(
+    model="gpt-4.1",
+    input=[{
+        "role": "user",
+        "content": [
+            {"type": "input_text", "text": prompt},
+            {"type": "output_image", "size": "512x512"}
+        ]
+    }]
+)
 
-    image_base64 = result.data[0].b64_json
-    image_bytes = base64.b64decode(image_base64)
+image_base64 = result.output[0].content[0].image_base64
+
 
     filename = f"{uuid.uuid4()}.png"
     path = os.path.join(GENERATED_DIR, filename)
