@@ -34,7 +34,7 @@ def generate():
         result = client.images.generate(
             model="gpt-image-1",
             prompt=f"Sticker, simple, flat, transparent background, {prompt}",
-            size="512x512"
+            size="auto"
         )
 
         image_base64 = result.data[0].b64_json
