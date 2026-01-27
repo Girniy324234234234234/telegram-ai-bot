@@ -1,73 +1,185 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Sticker Generator</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Sticker Generator</title>
 
-    <!-- ОБЯЗАТЕЛЬНО -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    }
 
-    <style>
-        body {
-            margin: 0;
-            padding: 16px;
-            background: #0f0f0f;
-            color: white;
-            font-family: Arial, sans-serif;
-        }
-        textarea {
-            width: 100%;
-            height: 80px;
-            margin-bottom: 12px;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            background: #6c5ce7;
-            color: white;
-            border: none;
-            border-radius: 8px;
-        }
-        img {
-            margin-top: 16px;
-            width: 100%;
-            border-radius: 12px;
-        }
-    </style>
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #0f0f14 0%, #1b1b26 100%);
+      color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100vh;
+      padding: 24px 16px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .header {
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .header p {
+      margin-top: 6px;
+      font-size: 14px;
+      color: #a0a0b0;
+    }
+
+    .input-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: none;
+      outline: none;
+      font-size: 16px;
+      background: #111118;
+      color: #ffffff;
+    }
+
+    input::placeholder {
+      color: #7d7d8c;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      border-radius: 14px;
+      border: none;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #7c6cff, #9b8cff);
+      color: #ffffff;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    button:active {
+      transform: scale(0.97);
+      opacity: 0.9;
+    }
+
+    .result {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .result img {
+      max-width: 100%;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .loader {
+      margin-top: 20px;
+      text-align: center;
+      color: #9b8cff;
+      font-size: 14px;
+      display: none;
+    }
+
+    .footer {
+      margin-top: auto;
+      text-align: center;
+      font-size: 12px;
+      color: #6f6f80;
+    }
+  </style>
 </head>
+
 <body>
+  <div class="app">
+    <div class="header">
+      <h1>🎨 Генерация стикера</h1>
+      <p>Опиши стикер — AI сделает магию</p>
+    </div>
 
-<h3>🎨 Генерация стикера</h3>
+    <div class="input-card">
+      <input
+        id="text"
+        placeholder="Например: милый кот в стиле Telegram"
+      />
+      <button onclick="generate()">Сгенерировать</button>
+    </div>
 
-<textarea id="text" placeholder="Опиши стикер"></textarea>
-<button onclick="generate()">Сгенерировать</button>
+    <div class="loader" id="loader">✨ Генерируем стикер...</div>
 
-<img id="result" style="display:none;"/>
+    <div class="result">
+      <img id="result" />
+    </div>
 
-<script>
-    const tg = window.Telegram.WebApp;
-    tg.ready();
-    tg.expand();
+    <div class="footer">
+      Powered by AI • Telegram Mini App
+    </div>
+  </div>
 
+  <script>
     async function generate() {
-        const text = document.getElementById("text").value;
+      const text = document.getElementById("text").value;
+      const img = document.getElementById("result");
+      const loader = document.getElementById("loader");
 
+      if (!text) {
+        alert("Введите описание");
+        return;
+      }
+
+      img.src = "";
+      loader.style.display = "block";
+
+      try {
         const res = await fetch("/generate", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ text })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
         });
 
         const data = await res.json();
 
-        if (data.url) {
-            const img = document.getElementById("result");
-            img.src = data.url;
-            img.style.display = "block";
+        if (data.ok) {
+          img.src = data.url;
+        } else {
+          alert(data.error || "Ошибка генерации");
         }
+      } catch (e) {
+        alert("Ошибка соединения");
+      } finally {
+        loader.style.display = "none";
+      }
     }
-</script>
-
+  </script>
 </body>
 </html>
