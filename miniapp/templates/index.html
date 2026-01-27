@@ -1,185 +1,215 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>Sticker Generator</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sticker Generator</title>
 
-  <style>
-    * {
-      box-sizing: border-box;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
-    }
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-    body {
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
-      background: linear-gradient(180deg, #0f0f14 0%, #1b1b26 100%);
-      color: #ffffff;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+<style>
+:root {
+  --bg: #0e0f1a;
+  --card: #181a2b;
+  --accent: #7b6cff;
+  --text: #ffffff;
+  --muted: #a0a3bd;
+}
 
-    .app {
-      width: 100%;
-      max-width: 480px;
-      min-height: 100vh;
-      padding: 24px 16px 32px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
-    .header {
-      text-align: center;
-    }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1b1e3c, var(--bg));
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 
-    .header h1 {
-      font-size: 26px;
-      font-weight: 700;
-      margin: 0;
-    }
+.app {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+}
 
-    .header p {
-      margin-top: 6px;
-      font-size: 14px;
-      color: #a0a0b0;
-    }
+.card {
+  background: var(--card);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
 
-    .input-card {
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 16px;
-      padding: 16px;
-      backdrop-filter: blur(10px);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+h1 {
+  font-size: 22px;
+  margin: 0 0 6px;
+}
 
-    input {
-      width: 100%;
-      padding: 14px 16px;
-      border-radius: 12px;
-      border: none;
-      outline: none;
-      font-size: 16px;
-      background: #111118;
-      color: #ffffff;
-    }
+.subtitle {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
 
-    input::placeholder {
-      color: #7d7d8c;
-    }
+input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  margin-bottom: 14px;
+  background: #0f1225;
+  color: white;
+}
 
-    button {
-      width: 100%;
-      padding: 16px;
-      border-radius: 14px;
-      border: none;
-      font-size: 17px;
-      font-weight: 600;
-      cursor: pointer;
-      background: linear-gradient(135deg, #7c6cff, #9b8cff);
-      color: #ffffff;
-      transition: transform 0.15s ease, opacity 0.15s ease;
-    }
+button {
+  width: 100%;
+  padding: 16px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #7b6cff, #9b8cff);
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
 
-    button:active {
-      transform: scale(0.97);
-      opacity: 0.9;
-    }
+button:disabled {
+  opacity: 0.6;
+}
 
-    .result {
-      margin-top: 10px;
-      display: flex;
-      justify-content: center;
-    }
+.loader {
+  display: none;
+  margin: 20px 0;
+  text-align: center;
+  color: var(--muted);
+}
 
-    .result img {
-      max-width: 100%;
-      border-radius: 20px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-    }
+.image-box {
+  display: none;
+  margin-top: 20px;
+  text-align: center;
+}
 
-    .loader {
-      margin-top: 20px;
-      text-align: center;
-      color: #9b8cff;
-      font-size: 14px;
-      display: none;
-    }
+.image-box img {
+  max-width: 100%;
+  border-radius: 20px;
+}
 
-    .footer {
-      margin-top: auto;
-      text-align: center;
-      font-size: 12px;
-      color: #6f6f80;
-    }
-  </style>
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.actions button {
+  flex: 1;
+  padding: 12px;
+  font-size: 14px;
+}
+
+.footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+</style>
 </head>
 
 <body>
-  <div class="app">
-    <div class="header">
-      <h1>🎨 Генерация стикера</h1>
-      <p>Опиши стикер — AI сделает магию</p>
+<div class="app">
+  <div class="card">
+    <h1>🎨 Генерация стикера</h1>
+    <div class="subtitle">Опиши стикер — AI сделает магию</div>
+
+    <input id="prompt" placeholder="Бобер в шапке" />
+
+    <button id="generateBtn" onclick="generate()">Сгенерировать</button>
+
+    <div class="loader" id="loader">✨ AI рисует стикер…</div>
+
+    <div class="image-box" id="imageBox">
+      <img id="resultImage" />
+
+      <div class="actions">
+        <button onclick="downloadImage()">📥 Скачать</button>
+        <button onclick="sendToChat()">📤 В чат</button>
+        <button onclick="saveSticker()">⭐ Сохранить</button>
+      </div>
     </div>
 
-    <div class="input-card">
-      <input
-        id="text"
-        placeholder="Например: милый кот в стиле Telegram"
-      />
-      <button onclick="generate()">Сгенерировать</button>
-    </div>
-
-    <div class="loader" id="loader">✨ Генерируем стикер...</div>
-
-    <div class="result">
-      <img id="result" />
-    </div>
-
-    <div class="footer">
-      Powered by AI • Telegram Mini App
-    </div>
+    <div class="footer">Powered by AI · Telegram Mini App</div>
   </div>
+</div>
 
-  <script>
-    async function generate() {
-      const text = document.getElementById("text").value;
-      const img = document.getElementById("result");
-      const loader = document.getElementById("loader");
+<script>
+Telegram.WebApp.ready();
+Telegram.WebApp.expand();
 
-      if (!text) {
-        alert("Введите описание");
-        return;
-      }
+let currentImageUrl = null;
 
-      img.src = "";
-      loader.style.display = "block";
+async function generate() {
+  const text = document.getElementById("prompt").value.trim();
+  if (!text) return;
 
-      try {
-        const res = await fetch("/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text })
-        });
+  document.getElementById("loader").style.display = "block";
+  document.getElementById("imageBox").style.display = "none";
+  document.getElementById("generateBtn").disabled = true;
 
-        const data = await res.json();
+  try {
+    const res = await fetch("/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
 
-        if (data.ok) {
-          img.src = data.url;
-        } else {
-          alert(data.error || "Ошибка генерации");
-        }
-      } catch (e) {
-        alert("Ошибка соединения");
-      } finally {
-        loader.style.display = "none";
-      }
-    }
-  </script>
+    const data = await res.json();
+
+    if (!data.ok) throw new Error(data.error);
+
+    currentImageUrl = data.url;
+    document.getElementById("resultImage").src = data.url;
+    document.getElementById("imageBox").style.display = "block";
+
+  } catch (e) {
+    alert("Ошибка генерации");
+  }
+
+  document.getElementById("loader").style.display = "none";
+  document.getElementById("generateBtn").disabled = false;
+}
+
+function downloadImage() {
+  if (!currentImageUrl) return;
+  const a = document.createElement("a");
+  a.href = currentImageUrl;
+  a.download = "sticker.png";
+  a.click();
+}
+
+function sendToChat() {
+  if (!currentImageUrl) return;
+  Telegram.WebApp.sendData(JSON.stringify({
+    type: "sticker",
+    url: currentImageUrl
+  }));
+}
+
+function saveSticker() {
+  if (!currentImageUrl) return;
+  const saved = JSON.parse(localStorage.getItem("stickers") || "[]");
+  saved.unshift(currentImageUrl);
+  localStorage.setItem("stickers", JSON.stringify(saved.slice(0, 5)));
+  Telegram.WebApp.showPopup({
+    message: "⭐ Стикер сохранён"
+  });
+}
+</script>
 </body>
 </html>
