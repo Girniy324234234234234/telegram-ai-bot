@@ -41,7 +41,7 @@ def generate():
     prompt = data.get("prompt", "").strip()
     chat_id = data.get("chat_id")
 
-    if not prompt or not chat_id:
+    if not prompt:
         return jsonify({"error": "prompt or chat_id missing"}), 400
 
     # ⚠️ ЗДЕСЬ ТВОЯ РЕАЛЬНАЯ AI-ГЕНЕРАЦИЯ
