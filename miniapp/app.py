@@ -2,108 +2,111 @@ import os
 import uuid
 import base64
 
-from flask import Flask, render_template, request, jsonify
-from telebot import TeleBot
+from flask import Flask, request, jsonify, render_template
+from telebot import TeleBot, types
+from openai import OpenAI
 
-# ========================
-# CONFIG
-# ========================
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-MINIAPP_URL = os.getenv("MINIAPP_URL")
+# ================= CONFIG =================
 
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN is not set")
+# ================== CONFIG ==================
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-bot = TeleBot(BOT_TOKEN, threaded=False)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-app = Flask(
-    __name__,
-    template_folder="templates",
-    static_folder="static"
-)
+app = Flask(__name__)
 
-# хранение последней картинки по chat_id
-LAST_IMAGE = {}
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(__file__)
+GENERATED_DIR = os.path.join(BASE_DIR, "static", "generated")
+os.makedirs(GENERATED_DIR, exist_ok=True)
 
-# ========================
-# ROUTES
-# ========================
+# ================= ROUTES =================
+bot = TeleBot(BOT_TOKEN)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-@app.route("/", methods=["GET"])
+app = Flask(__name__, static_folder="static", template_folder="templates")
+
+# ================== ROUTES ==================
+@app.route("/")
 def index():
     return render_template("index.html")
+@@ -33,10 +33,9 @@ def generate():
+        return jsonify({"ok": False, "error": "Empty prompt"}), 400
+
+    try:
+        # 🔥 Генерация изображения
+        result = client.images.generate(
+            model="gpt-image-1",
+            prompt=f"Sticker, simple, flat, vector style, transparent background. {prompt}",
+            prompt=f"Sticker, simple, flat, cartoon style, white border, transparent background, {prompt}",
+            size="1024x1024"
+        )
+
+@@ -49,23 +48,56 @@ def generate():
+        with open(filepath, "wb") as f:
+            f.write(image_bytes)
+
+        # ✅ ВАЖНО: полный HTTPS URL для Telegram Mini App
+        base_url = request.host_url.rstrip("/")
+
+        return jsonify({
+            "ok": True,
+            "url": f"{base_url}/static/generated/{filename}"
+            "url": f"/static/generated/{filename}",
+            "file": filename
+        })
+
+    except Exception as e:
+        print("IMAGE ERROR:", e)
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@app.route("/generate", methods=["POST"])
-def generate():
-    data = request.get_json(force=True)
-
-    prompt = data.get("prompt", "").strip()
-    chat_id = data.get("chat_id")
-
-    if not prompt:
-        return jsonify({"error": "prompt or chat_id missing"}), 400
-
-    # ⚠️ ЗДЕСЬ ТВОЯ РЕАЛЬНАЯ AI-ГЕНЕРАЦИЯ
-    # сейчас ожидаем base64 от фронта или AI
-    image_base64 = data.get("image_base64")
-
-    if not image_base64:
-        return jsonify({"error": "image_base64 missing"}), 400
-
-    LAST_IMAGE[chat_id] = image_base64
-
-    return jsonify({"ok": True})
-
-
-@app.route("/send_to_chat", methods=["POST"])
-def send_to_chat():
-    data = request.get_json(force=True)
-    chat_id = data.get("chat_id")
-
-    if not chat_id:
-        return jsonify({"error": "chat_id missing"}), 400
-
-    image_base64 = LAST_IMAGE.get(chat_id)
-    if not image_base64:
-        return jsonify({"error": "no image generated"}), 400
-
-    image_bytes = base64.b64decode(image_base64)
-
-    bot.send_photo(
-        chat_id=chat_id,
-        photo=image_bytes,
-        caption="🎨 Стикер из Mini App"
-    )
-
-    return jsonify({"ok": True})
-
-
-# ========================
-# BOT COMMAND
-# ========================
-
+# ================== TELEGRAM BOT ==================
 @bot.message_handler(commands=["start"])
 def start(message):
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton(
+            "🎨 Открыть генератор",
+            web_app=types.WebAppInfo(
+                url="https://telegram-ai-bot-production-5a64.up.railway.app"
+            )
+        )
+    )
     bot.send_message(
         message.chat.id,
-        "👋 Открой Mini App и сгенерируй стикер",
-        reply_markup={
-            "inline_keyboard": [[
-                {
-                    "text": "🎨 Открыть Mini App",
-                    "web_app": {
-                        "url": MINIAPP_URL
-                    }
-                }
-            ]]
-        }
+        "Привет! Создай AI-стикер 👇",
+        reply_markup=kb
     )
 
 
-# ========================
-# HEALTHCHECK
-# ========================
-@app.route("/health", methods=["GET"])
-def health():
-    return "OK", 200
+@bot.message_handler(content_types=["web_app_data"])
+def handle_webapp_data(message):
+    try:
+        filename = message.web_app_data.data
+        filepath = os.path.join(GENERATED_DIR, filename)
+
+        if not os.path.exists(filepath):
+            bot.send_message(message.chat.id, "❌ Файл не найден")
+            return
+
+        with open(filepath, "rb") as f:
+            bot.send_sticker(message.chat.id, f)
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Ошибка: {e}")
+
+# ================= START =================
+
+if __name__ == "__main__":
+# ================== START ==================
+if name == "__main__":
+    print("🚀 Bot started")
+    import threading
+    threading.Thread(target=lambda: bot.infinity_polling()).start()
+    app.run(host="0.0.0.0", port=8080)
