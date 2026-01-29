@@ -1,109 +1,80 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Генерация стикера</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-    <style>
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0f0f1a;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-
-        .app {
-            width: 90%;
-            max-width: 400px;
-            text-align: center;
-        }
-
-        input {
-            width: 100%;
-            padding: 14px;
-            border-radius: 12px;
-            border: none;
-            margin-bottom: 16px;
-            font-size: 16px;
-        }
-
-        button {
-            width: 100%;
-            padding: 14px;
-            border-radius: 12px;
-            border: none;
-            background: #6c63ff;
-            color: white;
-            font-size: 16px;
-        }
-
-        img {
-            margin-top: 20px;
-            max-width: 100%;
-            border-radius: 16px;
-            display: none;
-        }
-
-        .error {
-            margin-top: 16px;
-            color: #ff4d4d;
-            display: none;
-        }
-    </style>
+<meta charset="UTF-8" />
+<title>Sticker Generator</title>
+<style>
+body {
+  background:#0f0f1a;
+  color:white;
+  font-family:sans-serif;
+  text-align:center;
+}
+input, button {
+  padding:12px;
+  margin:10px;
+  width:80%;
+  border-radius:12px;
+  border:none;
+}
+button {
+  background:#7c6cff;
+  color:white;
+  font-size:18px;
+}
+img {
+  max-width:90%;
+  margin-top:20px;
+  display:none;
+}
+</style>
 </head>
 <body>
 
-<div class="app">
-    <h2>🎨 Генерация стикера</h2>
+<h2>🎨 Генерация стикера</h2>
 
-    <input id="text" placeholder="Бобер" />
+<input id="prompt" placeholder="Бобёр в космосе" />
+<button onclick="generate()">Сгенерировать</button>
 
-    <button onclick="generate()">Сгенерировать</button>
-
-    <div class="error" id="error">❌ Ошибка генерации</div>
-
-    <img id="img" />
-</div>
+<p id="status"></p>
+<img id="result" />
 
 <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
+async function generate() {
+  const text = document.getElementById("prompt").value;
+  const status = document.getElementById("status");
+  const img = document.getElementById("result");
 
-    async function generate() {
-        const text = document.getElementById("text").value.trim();
-        const img = document.getElementById("img");
-        const error = document.getElementById("error");
+  if (!text) {
+    status.innerText = "Введите описание";
+    return;
+  }
 
-        error.style.display = "none";
-        img.style.display = "none";
+  status.innerText = "Генерация...";
+  img.style.display = "none";
 
-        if (!text) return;
+  try {
+    const res = await fetch("/generate", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ text })
+    });
 
-        try {
-            const res = await fetch("/generate", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ text })
-            });
+    const data = await res.json();
 
-            const data = await res.json();
-
-            if (!data.ok) throw new Error();
-
-            img.src = "data:image/png;base64," + data.image;
-            img.style.display = "block";
-
-        } catch {
-            error.style.display = "block";
-        }
+    if (!data.ok) {
+      status.innerText = "Ошибка генерации";
+      return;
     }
+
+    img.src = "data:image/png;base64," + data.image;
+    img.style.display = "block";
+    status.innerText = "Готово";
+
+  } catch {
+    status.innerText = "Сервер недоступен";
+  }
+}
 </script>
 
 </body>
