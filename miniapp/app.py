@@ -1,111 +1,136 @@
 import os
 import uuid
-import base64
-from flask import Flask, request, jsonify, render_template
-from telebot import TeleBot, types
-from openai import OpenAI
+import requests
+from flask import Flask, request, jsonify, send_from_directory
+from telebot import TeleBot
+from telebot.types import InputFile
 
-# ================== CONFIG ==================
+# =======================
+# ENV
+# =======================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not BOT_TOKEN:
-    raise RuntimeError("❌ TELEGRAM_BOT_TOKEN is not set in environment variables")
+    raise RuntimeError("❌ BOT_TOKEN is not set")
 
-if not OPENAI_API_KEY:
-    raise RuntimeError("❌ OPENAI_API_KEY is not set in environment variables")
+# =======================
+# TELEGRAM BOT
+# =======================
+bot = TeleBot(BOT_TOKEN, threaded=False)
 
-BASE_DIR = os.path.dirname(__file__)
+# =======================
+# FLASK APP
+# =======================
+app = Flask(__name__)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 GENERATED_DIR = os.path.join(BASE_DIR, "static", "generated")
 os.makedirs(GENERATED_DIR, exist_ok=True)
 
-bot = TeleBot(BOT_TOKEN)
-client = OpenAI(api_key=OPENAI_API_KEY)
+# =======================
+# IMAGE GENERATION (OpenAI Images)
+# =======================
+def generate_image(prompt: str) -> str:
+    filename = f"{uuid.uuid4()}.png"
+    filepath = os.path.join(GENERATED_DIR, filename)
 
-app = Flask(__name__, static_folder="static", template_folder="templates")
+    response = requests.post(
+        "https://api.openai.com/v1/images/generations",
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "gpt-image-1",
+            "prompt": f"cute cartoon sticker, telegram style, white outline, {prompt}",
+            "size": "1024x1024"
+        },
+        timeout=60
+    )
 
-# ================== ROUTES ==================
-@app.route("/")
-def index():
-    return render_template("index.html")
+    response.raise_for_status()
+    image_url = response.json()["data"][0]["url"]
 
+    img = requests.get(image_url, timeout=60).content
+    with open(filepath, "wb") as f:
+        f.write(img)
 
+    return filename
+
+# =======================
+# API: GENERATE
+# =======================
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.get_json()
-    prompt = data.get("text", "").strip()
+    data = request.json
+    prompt = data.get("prompt", "").strip()
 
     if not prompt:
-        return jsonify({"ok": False, "error": "Empty prompt"}), 400
+        return jsonify({"error": "Empty prompt"}), 400
 
-    try:
-        result = client.images.generate(
-            model="gpt-image-1",
-            prompt=f"Sticker, flat cartoon style, white outline, transparent background. {prompt}",
-            size="1024x1024"
-        )
+    filename = generate_image(prompt)
+    return jsonify({
+        "image": f"/static/generated/{filename}",
+        "file": filename
+    })
 
-        image_base64 = result.data[0].b64_json
-        image_bytes = base64.b64decode(image_base64)
+# =======================
+# API: SEND TO CHAT
+# =======================
+@app.route("/send_to_chat", methods=["POST"])
+def send_to_chat():
+    data = request.json
+    chat_id = data.get("chat_id")
+    filename = data.get("file")
 
-        filename = f"{uuid.uuid4()}.png"
-        filepath = os.path.join(GENERATED_DIR, filename)
+    if not chat_id or not filename:
+        return jsonify({"error": "Missing data"}), 400
 
-        with open(filepath, "wb") as f:
-            f.write(image_bytes)
+    path = os.path.join(GENERATED_DIR, filename)
+    if not os.path.exists(path):
+        return jsonify({"error": "File not found"}), 404
 
-        return jsonify({
-            "ok": True,
-            "url": f"/static/generated/{filename}",
-            "file": filename
-        })
+    with open(path, "rb") as f:
+        bot.send_sticker(chat_id, InputFile(f))
 
-    except Exception as e:
-        print("IMAGE ERROR:", e)
-        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True})
 
+# =======================
+# STATIC
+# =======================
+@app.route("/static/generated/<path:filename>")
+def static_generated(filename):
+    return send_from_directory(GENERATED_DIR, filename)
 
-# ================== TELEGRAM BOT ==================
+# =======================
+# TELEGRAM COMMAND
+# =======================
 @bot.message_handler(commands=["start"])
-def start(message):
-    kb = types.InlineKeyboardMarkup()
-    kb.add(
-        types.InlineKeyboardButton(
-            "🎨 Открыть генератор",
-            web_app=types.WebAppInfo(
-                url="https://telegram-ai-bot-production-5a64.up.railway.app"
-            )
-        )
-    )
+def start(msg):
     bot.send_message(
-        message.chat.id,
-        "Привет! Создай AI-стикер 👇",
-        reply_markup=kb
+        msg.chat.id,
+        "🎨 Открой мини-апп и создай стикер 👇",
+        reply_markup={
+            "inline_keyboard": [[
+                {
+                    "text": "🚀 Открыть мини-апп",
+                    "web_app": {
+                        "url": "https://telegram-ai-bot-production-5a64.up.railway.app"
+                    }
+                }
+            ]]
+        }
     )
 
+# =======================
+# START BOT POLLING
+# =======================
+def start_bot():
+    bot.infinity_polling(skip_pending=True)
 
-@bot.message_handler(content_types=["web_app_data"])
-def handle_webapp_data(message):
-    try:
-        filename = message.web_app_data.data
-        filepath = os.path.join(GENERATED_DIR, filename)
-
-        if not os.path.exists(filepath):
-            bot.send_message(message.chat.id, "❌ Файл не найден")
-            return
-
-        with open(filepath, "rb") as f:
-            bot.send_sticker(message.chat.id, f)
-
-    except Exception as e:
-        bot.send_message(message.chat.id, f"Ошибка: {e}")
-
-
-# ================== START ==================
-if name == "__main__":
-    print("🚀 Bot started")
-
-    import threading
-    threading.Thread(target=lambda: bot.infinity_polling()).start()
-
-    app.run(host="0.0.0.0", port=8080)
+# =======================
+# ENTRYPOINT
+# =======================
+import threading
+threading.Thread(target=start_bot, daemon=True).start()
