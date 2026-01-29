@@ -2,11 +2,13 @@ import threading
 import os
 
 from bot.run_bot import bot
-from miniapp.app import app   # ❗ ВАЖНО — НЕ from miniapp import app
+from miniapp.app import app
+
 
 def run_bot():
     print("🚀 Starting Telegram bot polling")
     bot.infinity_polling(skip_pending=True)
+
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
@@ -18,9 +20,10 @@ def run_flask():
         use_reloader=False
     )
 
-if __name__ == "__main__":
-    t1 = threading.Thread(target=run_bot)
-    t2 = threading.Thread(target=run_flask)
+
+if name == "__main__":
+    t1 = threading.Thread(target=run_bot, daemon=True)
+    t2 = threading.Thread(target=run_flask, daemon=True)
 
     t1.start()
     t2.start()
