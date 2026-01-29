@@ -126,7 +126,7 @@ def send_to_chat():
 
 # ================= MAIN =================
 
-if name == "__main__":
+if __name__ == "__main__":
     # СТАРТ БОТА ОДИН РАЗ
     Thread(target=run_bot, daemon=True).start()
 
