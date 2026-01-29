@@ -1,11 +1,10 @@
 import os
 import base64
 import requests
-from io import BytesIO
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import telebot
 from threading import Thread
+from io import BytesIO
 
 # ================== CONFIG ==================
 
@@ -22,7 +21,7 @@ if not HF_API_KEY:
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-# Храним последнее изображение для каждого чата
+# Храним изображения по chat_id
 LAST_IMAGE = {}
 
 # ================== TELEGRAM BOT ==================
@@ -39,8 +38,7 @@ def start(message):
 def help_cmd(message):
     bot.send_message(
         message.chat.id,
-        "ℹ️ Используй Mini App для генерации стикеров.\n"
-        "Команда /start — начало."
+        "ℹ️ Используй Mini App для генерации стикеров."
     )
 
 def run_bot():
@@ -56,69 +54,64 @@ def index():
 @app.route("/generate", methods=["POST"])
 def generate():
     """
-    Вызывается Mini App
+    Mini App -> backend
     {
-        "prompt": "кот в шапке",
-        "chat_id": 123456789
+        "text": "кот в шапке",
+        "chat_id": 123
     }
     """
     data = request.get_json(force=True)
 
-    prompt = data.get("prompt", "").strip()
-    chat_id = data.get("chat_id")
+    prompt = data.get("text", "").strip()
+    chat_id = str(data.get("chat_id"))
 
     if not prompt or not chat_id:
-        return jsonify({"error": "prompt or chat_id missing"}), 400
+        return jsonify({"error": "text or chat_id missing"}), 400
 
-    # ===== HF IMAGE GENERATION =====
     hf_url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-
     headers = {
         "Authorization": f"Bearer {HF_API_KEY}",
         "Accept": "image/png"
     }
 
     payload = {
-        "inputs": f"cute sticker style, flat illustration, white outline, {prompt}"
+        "inputs": f"cute sticker, flat illustration, white outline, {prompt}"
     }
 
     resp = requests.post(hf_url, headers=headers, json=payload, timeout=60)
 
     if resp.status_code != 200:
-        return jsonify({
-            "error": "HF generation failed",
-            "details": resp.text
-        }), 500
+        return jsonify({"error": "HF failed", "details": resp.text}), 500
 
     image_bytes = resp.content
-    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    LAST_IMAGE[chat_id] = image_bytes
 
-    LAST_IMAGE[str(chat_id)] = image_base64
+    return jsonify({
+        "ok": True,
+        "url": f"/image/{chat_id}"
+    })
 
-    return jsonify({"ok": True})
+
+@app.route("/image/<chat_id>")
+def get_image(chat_id):
+    img = LAST_IMAGE.get(chat_id)
+    if not img:
+        return "Not found", 404
+    return send_file(BytesIO(img), mimetype="image/png")
 
 
 @app.route("/send_to_chat", methods=["POST"])
 def send_to_chat():
-    """
-    Вызывается Mini App после генерации
-    {
-        "chat_id": 123456789
-    }
-    """
     data = request.get_json(force=True)
     chat_id = str(data.get("chat_id"))
 
-    image_base64 = LAST_IMAGE.get(chat_id)
-
-    if not image_base64:
-        return jsonify({"error": "No image to send"}), 400
-
-    image_bytes = base64.b64decode(image_base64)
+    img = LAST_IMAGE.get(chat_id)
+    if not img:
+        return jsonify({"error": "No image"}), 400
 
     bot.send_photo(
         chat_id=int(chat_id),
-        photo=image_bytes,
+        photo=img,
         caption="🎨 Стикер из Mini App"
     )
 
@@ -128,6 +121,5 @@ def send_to_chat():
 
 if __name__ == "__main__":
     Thread(target=run_bot).start()
-
     port = int(os.getenv("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
