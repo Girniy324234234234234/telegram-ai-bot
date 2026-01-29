@@ -1,49 +1,28 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8" />
-<title>Sticker Generator</title>
-<style>
-body {
-  background:#0f0f1a;
-  color:white;
-  font-family:sans-serif;
-  text-align:center;
-}
-input, button {
-  padding:12px;
-  margin:10px;
-  width:80%;
-  border-radius:12px;
-  border:none;
-}
-button {
-  background:#7c6cff;
-  color:white;
-  font-size:18px;
-}
-img {
-  max-width:90%;
-  margin-top:20px;
-  display:none;
-}
-</style>
+  <meta charset="UTF-8">
+  <title>Sticker Generator</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
+
 <body>
+  <h2>🎨 Генерация стикера</h2>
 
-<h2>🎨 Генерация стикера</h2>
+  <input id="text" placeholder="Бобер в кедах" />
+  <button onclick="generate()">Сгенерировать</button>
 
-<input id="prompt" placeholder="Бобёр в космосе" />
-<button onclick="generate()">Сгенерировать</button>
-
-<p id="status"></p>
-<img id="result" />
+  <p id="status"></p>
+  <img id="img" style="display:none; max-width:100%" />
 
 <script>
+const tg = window.Telegram.WebApp;
+tg.expand();
+
 async function generate() {
-  const text = document.getElementById("prompt").value;
+  const text = document.getElementById("text").value.trim();
   const status = document.getElementById("status");
-  const img = document.getElementById("result");
+  const img = document.getElementById("img");
 
   if (!text) {
     status.innerText = "Введите описание";
@@ -53,29 +32,23 @@ async function generate() {
   status.innerText = "Генерация...";
   img.style.display = "none";
 
-  try {
-    const res = await fetch("/generate", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ text })
-    });
+  const res = await fetch("/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
 
-    const data = await res.json();
+  const data = await res.json();
 
-    if (!data.ok) {
-      status.innerText = "Ошибка генерации";
-      return;
-    }
-
-    img.src = "data:image/png;base64," + data.image;
-    img.style.display = "block";
-    status.innerText = "Готово";
-
-  } catch {
-    status.innerText = "Сервер недоступен";
+  if (!data.ok) {
+    status.innerText = "Ошибка генерации";
+    return;
   }
+
+  img.src = "data:image/png;base64," + data.image;
+  img.style.display = "block";
+  status.innerText = "Готово";
 }
 </script>
-
 </body>
 </html>
