@@ -1,13 +1,19 @@
+# miniapp/app.py
+
 import os
+import uuid
 import base64
 from flask import Flask, render_template, request, jsonify
-from telebot import TeleBot
+from openai import OpenAI
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN is not set")
+# ======================
+# CONFIG
+# ======================
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY not set")
 
-bot = TeleBot(BOT_TOKEN, threaded=False)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = Flask(
     name,
@@ -15,9 +21,12 @@ app = Flask(
     static_folder="static"
 )
 
-# хранение последнего изображения по chat_id
-LAST_IMAGE = {}
+GENERATED_DIR = "miniapp/static/generated"
+os.makedirs(GENERATED_DIR, exist_ok=True)
 
+# ======================
+# ROUTES
+# ======================
 
 @app.route("/")
 def index():
@@ -27,48 +36,38 @@ def index():
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.get_json(force=True)
+    text = data.get("text", "").strip()
 
-    prompt = data.get("prompt")
-    chat_id = data.get("chat_id")
+    if not text:
+        return jsonify({"ok": False, "error": "Empty prompt"}), 400
 
-    if not prompt or not chat_id:
-        return jsonify({"error": "prompt or chat_id missing"}), 400
+    try:
+        result = client.images.generate(
+            model="gpt-image-1",
+            prompt=f"Sticker, transparent background, cartoon style: {text}",
+            size="1024x1024"
+        )
 
-    # ⚠️ ЗДЕСЬ ТВОЯ РЕАЛЬНАЯ AI-ГЕНЕРАЦИЯ
-    # сейчас ожидаем base64 PNG
-    image_base64 = data.get("image_base64")
-    if not image_base64:
-        return jsonify({"error": "image generation failed"}), 500
+        image_base64 = result.data[0].b64_json
+        image_bytes = base64.b64decode(image_base64)
 
-    LAST_IMAGE[chat_id] = image_base64
+        filename = f"{uuid.uuid4()}.png"
+        path = os.path.join(GENERATED_DIR, filename)
 
-    return jsonify({
-        "ok": True,
-        "image_base64": image_base64
-    })
+        with open(path, "wb") as f:
+            f.write(image_bytes)
 
+        return jsonify({
+            "ok": True,
+            "url": f"/static/generated/{filename}"
+        })
 
-@app.route("/send_to_chat", methods=["POST"])
-def send_to_chat():
-    data = request.get_json(force=True)
-    chat_id = data.get("chat_id")
-
-    if not chat_id:
-        return jsonify({"error": "chat_id missing"}), 400
-
-    image_base64 = LAST_IMAGE.get(chat_id)
-    if not image_base64:
-        return jsonify({"error": "no image"}), 400
-
-    image_bytes = base64.b64decode(image_base64)
-
-    bot.send_photo(
-        chat_id=chat_id,
-        photo=image_bytes,
-        caption="🎨 Стикер из Mini App"
-    )
-
-    return jsonify({"ok": True})
+    except Exception as e:
+        print("IMAGE ERROR:", e)
+        return jsonify({
+            "ok": False,
+            "error": "Image generation failed"
+        }), 500
 
 
 @app.route("/health")
