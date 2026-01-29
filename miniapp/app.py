@@ -1,54 +1,109 @@
 import os
-import requests
-from flask import Flask, request, jsonify, render_template
+import uuid
+import base64
 
-app = Flask(__name__)
+from flask import Flask, render_template, request, jsonify
+from telebot import TeleBot
 
-HF_API_KEY = os.getenv("HF_API_KEY")
+# ========================
+# CONFIG
+# ========================
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MINIAPP_URL = os.getenv("MINIAPP_URL")
 
-MODEL_ID = "stabilityai/stable-diffusion-2-1"
-HF_URL = f"https://router.huggingface.co/hf-inference/models/{MODEL_ID}"
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN is not set")
 
-@app.route("/")
+bot = TeleBot(BOT_TOKEN, threaded=False)
+
+app = Flask(
+    __name__,
+    template_folder="templates",
+    static_folder="static"
+)
+
+# хранение последней картинки по chat_id
+LAST_IMAGE = {}
+
+# ========================
+# ROUTES
+# ========================
+
+@app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
 
+
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.json
-    prompt = data.get("text")
+    data = request.get_json(force=True)
 
-    if not prompt:
-        return jsonify({"ok": False, "error": "empty prompt"}), 400
+    prompt = data.get("prompt", "").strip()
+    chat_id = data.get("chat_id")
 
-    headers = {
-        "Authorization": f"Bearer {HF_API_KEY}",
-        "Content-Type": "application/json",
-    }
+    if not prompt or not chat_id:
+        return jsonify({"error": "prompt or chat_id missing"}), 400
 
-    payload = {
-        "inputs": prompt
-    }
+    # ⚠️ ЗДЕСЬ ТВОЯ РЕАЛЬНАЯ AI-ГЕНЕРАЦИЯ
+    # сейчас ожидаем base64 от фронта или AI
+    image_base64 = data.get("image_base64")
 
-    try:
-        r = requests.post(HF_URL, headers=headers, json=payload, timeout=60)
+    if not image_base64:
+        return jsonify({"error": "image_base64 missing"}), 400
 
-        if r.status_code != 200:
-            print("HF ERROR:", r.text)
-            return jsonify({"ok": False, "error": "hf error"}), 500
+    LAST_IMAGE[chat_id] = image_base64
 
-        image_bytes = r.content
-        image_base64 = image_bytes.encode("base64").decode("utf-8")
-
-        return jsonify({
-            "ok": True,
-            "image": image_base64
-        })
-
-    except Exception as e:
-        print("SERVER ERROR:", e)
-        return jsonify({"ok": False, "error": "server error"}), 500
+    return jsonify({"ok": True})
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+@app.route("/send_to_chat", methods=["POST"])
+def send_to_chat():
+    data = request.get_json(force=True)
+    chat_id = data.get("chat_id")
+
+    if not chat_id:
+        return jsonify({"error": "chat_id missing"}), 400
+
+    image_base64 = LAST_IMAGE.get(chat_id)
+    if not image_base64:
+        return jsonify({"error": "no image generated"}), 400
+
+    image_bytes = base64.b64decode(image_base64)
+
+    bot.send_photo(
+        chat_id=chat_id,
+        photo=image_bytes,
+        caption="🎨 Стикер из Mini App"
+    )
+
+    return jsonify({"ok": True})
+
+
+# ========================
+# BOT COMMAND
+# ========================
+
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.send_message(
+        message.chat.id,
+        "👋 Открой Mini App и сгенерируй стикер",
+        reply_markup={
+            "inline_keyboard": [[
+                {
+                    "text": "🎨 Открыть Mini App",
+                    "web_app": {
+                        "url": MINIAPP_URL
+                    }
+                }
+            ]]
+        }
+    )
+
+
+# ========================
+# HEALTHCHECK
+# ========================
+@app.route("/health", methods=["GET"])
+def health():
+    return "OK", 200
