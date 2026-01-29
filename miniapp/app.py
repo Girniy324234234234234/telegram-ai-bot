@@ -15,7 +15,7 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = Flask(
-    name,
+    __name__,
     template_folder="templates",
     static_folder="static"
 )
