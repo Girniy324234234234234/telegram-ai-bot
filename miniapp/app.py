@@ -118,7 +118,7 @@ def send_to_chat():
 
 # ================== MAIN ==================
 
-if name == "__main__":
+if __name__ == "__main__":
     # polling — в отдельном daemon-потоке
     threading.Thread(target=safe_polling, daemon=True).start()
 
