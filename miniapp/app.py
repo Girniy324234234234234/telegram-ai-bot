@@ -5,35 +5,49 @@ from flask import Flask, request, jsonify, send_from_directory
 from telebot import TeleBot
 from telebot.types import InputFile
 
-# =========================
-# CONFIG
-# =========================
-
+# =====================
+# ENV
+# =====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not BOT_TOKEN:
-    raise RuntimeError("❌ BOT_TOKEN is not set in Railway Variables")
+    raise RuntimeError("BOT_TOKEN is missing in environment variables")
 
-if not OPENAI_API_KEY:
-    raise RuntimeError("❌ OPENAI_API_KEY is not set in Railway Variables")
-
+# =====================
+# APP + BOT
+# =====================
+app = Flask(__name__)
 bot = TeleBot(BOT_TOKEN, threaded=False)
 
-BASE_DIR = os.path.dirname(__file__)
-STATIC_DIR = os.path.join(BASE_DIR, "static", "generated")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+GENERATED_DIR = os.path.join(BASE_DIR, "static", "generated")
+os.makedirs(GENERATED_DIR, exist_ok=True)
 
-os.makedirs(STATIC_DIR, exist_ok=True)
+# =====================
+# TELEGRAM COMMANDS
+# =====================
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.send_message(
+        message.chat.id,
+        "👋 Привет!\n\nНажми кнопку ниже и создай стикер 👇",
+        reply_markup={
+            "inline_keyboard": [[
+                {
+                    "text": "🎨 Открыть генератор",
+                    "web_app": {"url": os.getenv("WEBAPP_URL", "")}
+                }
+            ]]
+        }
+    )
 
-app = Flask(__name__)
-
-# =========================
-# AI IMAGE GENERATION
-# =========================
-
-def generate_sticker(prompt: str) -> str:
+# =====================
+# IMAGE GENERATION
+# =====================
+def generate_image(prompt: str) -> str:
     filename = f"{uuid.uuid4()}.png"
-    filepath = os.path.join(STATIC_DIR, filename)
+    filepath = os.path.join(GENERATED_DIR, filename)
 
     response = requests.post(
         "https://api.openai.com/v1/images/generations",
@@ -43,78 +57,69 @@ def generate_sticker(prompt: str) -> str:
         },
         json={
             "model": "gpt-image-1",
-            "prompt": f"cute cartoon sticker, white outline, flat style, {prompt}",
-            "size": "1024x1024"
+            "prompt": f"Sticker, cartoon style, thick outline, telegram sticker, {prompt}",
+            "size": "1024x1024",
         },
         timeout=60
     )
 
-    data = response.json()
-    image_url = data["data"][0]["url"]
+    image_url = response.json()["data"][0]["url"]
+    image_data = requests.get(image_url).content
 
-    img = requests.get(image_url).content
     with open(filepath, "wb") as f:
-        f.write(img)
+        f.write(image_data)
 
-    return f"/static/generated/{filename}"
+    return filename
 
-# =========================
-# ROUTES
-# =========================
-
-@app.route("/")
-def index():
-    return send_from_directory(BASE_DIR, "index.html")
-
+# =====================
+# API — GENERATE
+# =====================
 @app.route("/generate", methods=["POST"])
 def generate():
-    text = request.json.get("text")
-    if not text:
-        return jsonify({"ok": False, "error": "No text provided"})
+    data = request.json
+    prompt = data.get("prompt")
 
-    url = generate_sticker(text)
-    return jsonify({"ok": True, "url": url})
+    if not prompt:
+        return jsonify({"error": "No prompt"}), 400
 
+    filename = generate_image(prompt)
+
+    return jsonify({
+        "image": f"/static/generated/{filename}",
+        "file": filename
+    })
+
+# =====================
+# API — SEND TO CHAT
+# =====================
 @app.route("/send_to_chat", methods=["POST"])
 def send_to_chat():
     data = request.json
-    image_url = data.get("image")
-    user_id = data.get("user_id")
+    chat_id = data.get("chat_id")
+    filename = data.get("file")
 
-    if not image_url or not user_id:
-        return jsonify({"ok": False, "error": "Missing data"})
+    if not chat_id or not filename:
+        return jsonify({"error": "chat_id or file missing"}), 400
 
-    path = image_url.replace("/static/", "")
-    file_path = os.path.join(BASE_DIR, "static", path)
+    path = os.path.join(GENERATED_DIR, filename)
 
-    try:
-        with open(file_path, "rb") as f:
-            bot.send_sticker(
-                chat_id=user_id,
-                sticker=InputFile(f)
-            )
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
+    with open(path, "rb") as f:
+        bot.send_sticker(chat_id, InputFile(f))
 
-# =========================
-# BOT COMMANDS (SAFE)
-# =========================
+    return jsonify({"status": "ok"})
 
-@bot.message_handler(commands=["start", "help"])
-def start_handler(message):
-    bot.send_message(
-        message.chat.id,
-        "👋 Открой мини-приложение и создай стикер"
-    )
+# =====================
+# STATIC
+# =====================
+@app.route("/static/generated/<path:filename>")
+def static_files(filename):
+    return send_from_directory(GENERATED_DIR, filename)
 
-# =========================
-# ENTRY POINT
-# =========================
+# =====================
+# BOT POLLING (ОДИН РАЗ!)
+# =====================
+def run_bot():
+    bot.infinity_polling(skip_pending=True)
 
-if name == "__main__":
-    # ❗ ВАЖНО: polling ТОЛЬКО локально
-    if os.getenv("RAILWAY_ENVIRONMENT") is None:
-        bot.infinity_polling(skip_pending=True)
-
-    app.run(host="0.0.0.0", port=8080)
+if os.getenv("RUN_BOT") == "1":
+    run_bot()
