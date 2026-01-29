@@ -9,6 +9,12 @@ from openai import OpenAI
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+if not BOT_TOKEN:
+    raise RuntimeError("❌ TELEGRAM_BOT_TOKEN is not set in environment variables")
+
+if not OPENAI_API_KEY:
+    raise RuntimeError("❌ OPENAI_API_KEY is not set in environment variables")
+
 BASE_DIR = os.path.dirname(__file__)
 GENERATED_DIR = os.path.join(BASE_DIR, "static", "generated")
 os.makedirs(GENERATED_DIR, exist_ok=True)
@@ -35,7 +41,7 @@ def generate():
     try:
         result = client.images.generate(
             model="gpt-image-1",
-            prompt=f"Sticker, simple, flat, cartoon style, white border, transparent background, {prompt}",
+            prompt=f"Sticker, flat cartoon style, white outline, transparent background. {prompt}",
             size="1024x1024"
         )
 
@@ -98,6 +104,8 @@ def handle_webapp_data(message):
 # ================== START ==================
 if name == "__main__":
     print("🚀 Bot started")
+
     import threading
     threading.Thread(target=lambda: bot.infinity_polling()).start()
+
     app.run(host="0.0.0.0", port=8080)
