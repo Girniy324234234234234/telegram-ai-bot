@@ -9,7 +9,7 @@ from telebot import TeleBot
 # CONFIG
 # ========================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+MINIAPP_URL = os.getenv("MINIAPP_URL")
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set")
@@ -17,74 +17,70 @@ if not BOT_TOKEN:
 bot = TeleBot(BOT_TOKEN, threaded=False)
 
 app = Flask(
-    __name__,
+    name,
     template_folder="templates",
     static_folder="static"
 )
 
-# хранение последнего стикера для отправки в чат
+# хранение последней картинки по chat_id
 LAST_IMAGE = {}
 
 # ========================
 # ROUTES
 # ========================
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
 
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.json
-    prompt = data.get("prompt")
+    data = request.get_json(force=True)
+
+    prompt = data.get("prompt", "").strip()
     chat_id = data.get("chat_id")
 
-    if not prompt:
-        return jsonify({"error": "No prompt"}), 400
+    if not prompt or not chat_id:
+        return jsonify({"error": "prompt or chat_id missing"}), 400
 
-    # ❗️заглушка генерации (у тебя она уже есть — тут логика не ломается)
-    # предположим, что ты уже генерируешь PNG как base64
-    # ниже — имитация результата
+    # ⚠️ ЗДЕСЬ ТВОЯ РЕАЛЬНАЯ AI-ГЕНЕРАЦИЯ
+    # сейчас ожидаем base64 от фронта или AI
+    image_base64 = data.get("image_base64")
 
-    fake_image_base64 = data.get("image_base64")
-    if not fake_image_base64:
-        return jsonify({"error": "Image generation failed"}), 500
+    if not image_base64:
+        return jsonify({"error": "image_base64 missing"}), 400
 
-    image_id = str(uuid.uuid4())
-    LAST_IMAGE[chat_id] = fake_image_base64
+    LAST_IMAGE[chat_id] = image_base64
 
-    return jsonify({
-        "success": True,
-        "image_base64": fake_image_base64
-    })
+    return jsonify({"ok": True})
 
 
-@app.route("/send", methods=["POST"])
+@app.route("/send_to_chat", methods=["POST"])
 def send_to_chat():
-    data = request.json
+    data = request.get_json(force=True)
     chat_id = data.get("chat_id")
 
     if not chat_id:
-        return jsonify({"error": "No chat_id"}), 400
+        return jsonify({"error": "chat_id missing"}), 400
 
     image_base64 = LAST_IMAGE.get(chat_id)
     if not image_base64:
-        return jsonify({"error": "No image to send"}), 400
+        return jsonify({"error": "no image generated"}), 400
 
     image_bytes = base64.b64decode(image_base64)
 
     bot.send_photo(
         chat_id=chat_id,
         photo=image_bytes,
-        caption="🎨 Стикер сгенерирован в Mini App"
+        caption="🎨 Стикер из Mini App"
     )
 
-    return jsonify({"success": True})
+    return jsonify({"ok": True})
 
 
 # ========================
-# BOT COMMANDS
+# BOT COMMAND
 # ========================
 
 @bot.message_handler(commands=["start"])
@@ -97,54 +93,16 @@ def start(message):
                 {
                     "text": "🎨 Открыть Mini App",
                     "web_app": {
-                        "url": os.getenv("MINIAPP_URL")
+                        "url": MINIAPP_URL
                     }
                 }
             ]]
         }
     )
 
-# 🔹 Генерация изображения (заглушка под твою AI-логику)
-@app.route("/generate", methods=["POST"])
-def generate():
-    data = request.get_json(force=True)
-    prompt = data.get("text", "").strip()
-
-    if not prompt:
-        return jsonify({"error": "Empty prompt"}), 400
-
-    # ⚠️ ЗДЕСЬ ТВОЯ AI-ЛОГИКА
-    # Сейчас просто пример
-    filename = f"{uuid.uuid4()}.png"
-    image_url = f"/static/generated/{filename}"
-
-    return jsonify({
-        "ok": True,
-        "image_url": image_url
-    })
-
-
-# 🔹 Отправка картинки в чат бота
-@app.route("/send_to_chat", methods=["POST"])
-def send_to_chat():
-    data = request.get_json(force=True)
-
-    chat_id = data.get("chat_id")
-    image_url = data.get("image_url")
-
-    if not chat_id or not image_url:
-        return jsonify({"error": "Missing data"}), 400
-
-    # Абсолютный URL для Telegram
-    if image_url.startswith("/"):
-        image_url = request.host_url.rstrip("/") + image_url
-
-    bot.send_photo(chat_id, image_url)
-    return jsonify({"ok": True})
-
 
 # ========================
-# HEALTHCHECK (Railway)
+# HEALTHCHECK
 # ========================
 @app.route("/health", methods=["GET"])
 def health():
