@@ -3,58 +3,48 @@ import base64
 import requests
 from flask import Flask, request, jsonify, render_template
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")
 
 HF_API_KEY = os.getenv("HF_API_KEY")
-
-HF_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
-HF_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-
-headers = {
-    "Authorization": f"Bearer {HF_API_KEY}",
-    "Content-Type": "application/json"
-}
-
+HF_MODEL = "stabilityai/stable-diffusion-2-1"
+HF_URL = f"https://api-inference.hf.co/models/{HF_MODEL}"
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-
 @app.route("/generate", methods=["POST"])
 def generate():
+    data = request.get_json()
+    prompt = data.get("text")
+
+    if not prompt:
+        return jsonify({"ok": False, "error": "no prompt"}), 400
+
+    headers = {
+        "Authorization": f"Bearer {HF_API_KEY}",
+        "Accept": "image/png"
+    }
+
+    payload = {
+        "inputs": prompt
+    }
+
     try:
-        data = request.get_json()
-        text = data.get("text")
-
-        if not text:
-            return jsonify({"ok": False, "error": "no text"}), 400
-
-        payload = {
-            "inputs": f"sticker, cute, simple, vector style, {text}"
-        }
-
-        r = requests.post(
-            HF_URL,
-            headers=headers,
-            json=payload,
-            timeout=60
-        )
+        r = requests.post(HF_URL, headers=headers, json=payload, timeout=60)
 
         if r.status_code != 200:
             print("HF ERROR:", r.text)
             return jsonify({"ok": False}), 500
 
-        image_bytes = r.content
-        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-
+        image_base64 = base64.b64encode(r.content).decode("utf-8")
         return jsonify({
             "ok": True,
             "image": image_base64
         })
 
     except Exception as e:
-        print("GEN ERROR:", e)
+        print("SERVER ERROR:", e)
         return jsonify({"ok": False}), 500
 
 
