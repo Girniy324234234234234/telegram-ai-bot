@@ -21,7 +21,7 @@ GENERATED_DIR = os.path.join(STATIC_DIR, "generated")
 os.makedirs(GENERATED_DIR, exist_ok=True)
 
 app = Flask(
-    name,
+    __name__,
     template_folder="templates",
     static_folder="static"
 )
