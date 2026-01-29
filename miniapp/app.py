@@ -6,7 +6,7 @@ from telebot import TeleBot, types
 from openai import OpenAI
 
 # ================== CONFIG ==================
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not BOT_TOKEN:
