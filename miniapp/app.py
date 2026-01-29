@@ -1,16 +1,9 @@
 import os
-import uuid
 import base64
-
 from flask import Flask, render_template, request, jsonify
-from telebot import TeleBot, types
+from telebot import TeleBot
 
-# ========================
-# CONFIG
-# ========================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-MINIAPP_URL = os.getenv("MINIAPP_URL")
-
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set")
 
@@ -22,12 +15,9 @@ app = Flask(
     static_folder="static"
 )
 
-# image_id -> base64
-IMAGES = {}
+# хранение последнего изображения по chat_id
+LAST_IMAGE = {}
 
-# ========================
-# MINI APP
-# ========================
 
 @app.route("/")
 def index():
@@ -37,81 +27,49 @@ def index():
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.get_json(force=True)
-    text = data.get("text", "").strip()
 
-    if not text:
-        return jsonify({"ok": False, "error": "Empty prompt"}), 400
+    prompt = data.get("prompt")
+    chat_id = data.get("chat_id")
 
-    # 🔴 ЗАГЛУШКА (вместо AI)
-    fake_png = base64.b64encode(b"fake-image-bytes").decode()
+    if not prompt or not chat_id:
+        return jsonify({"error": "prompt or chat_id missing"}), 400
 
-    image_id = str(uuid.uuid4())
-    IMAGES[image_id] = fake_png
+    # ⚠️ ЗДЕСЬ ТВОЯ РЕАЛЬНАЯ AI-ГЕНЕРАЦИЯ
+    # сейчас ожидаем base64 PNG
+    image_base64 = data.get("image_base64")
+    if not image_base64:
+        return jsonify({"error": "image generation failed"}), 500
+
+    LAST_IMAGE[chat_id] = image_base64
 
     return jsonify({
         "ok": True,
-        "url": f"/image/{image_id}"
+        "image_base64": image_base64
     })
 
 
-@app.route("/image/<image_id>")
-def image(image_id):
-    img = IMAGES.get(image_id)
-    if not img:
-        return "Not found", 404
+@app.route("/send_to_chat", methods=["POST"])
+def send_to_chat():
+    data = request.get_json(force=True)
+    chat_id = data.get("chat_id")
 
-    return base64.b64decode(img), 200, {
-        "Content-Type": "image/png",
-        "Cache-Control": "no-store"
-    }
+    if not chat_id:
+        return jsonify({"error": "chat_id missing"}), 400
 
+    image_base64 = LAST_IMAGE.get(chat_id)
+    if not image_base64:
+        return jsonify({"error": "no image"}), 400
 
-# ========================
-# BOT
-# ========================
+    image_bytes = base64.b64decode(image_base64)
 
-@bot.message_handler(commands=["start"])
-def start(message):
-    kb = types.InlineKeyboardMarkup()
-    kb.add(
-        types.InlineKeyboardButton(
-            text="🎨 Открыть Mini App",
-            web_app=types.WebAppInfo(url=MINIAPP_URL)
-        )
+    bot.send_photo(
+        chat_id=chat_id,
+        photo=image_bytes,
+        caption="🎨 Стикер из Mini App"
     )
 
-    bot.send_message(
-        message.chat.id,
-        "👋 Открой Mini App и сгенерируй стикер",
-        reply_markup=kb
-    )
+    return jsonify({"ok": True})
 
-
-@bot.message_handler(content_types=["web_app_data"])
-def webapp_data(message):
-    try:
-        payload = eval(message.web_app_data.data)
-        image_url = payload.get("url")
-
-        if not image_url:
-            bot.send_message(message.chat.id, "❌ Нет изображения")
-            return
-
-        full_url = request.host_url.rstrip("/") + image_url
-
-        bot.send_photo(
-            chat_id=message.chat.id,
-            photo=full_url,
-            caption="🎨 Стикер из Mini App"
-        )
-
-    except Exception as e:
-        bot.send_message(message.chat.id, f"Ошибка: {e}")
-
-
-# ========================
-# HEALTHCHECK
-# ========================
 
 @app.route("/health")
 def health():
