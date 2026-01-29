@@ -17,7 +17,7 @@ if not BOT_TOKEN:
 bot = TeleBot(BOT_TOKEN, threaded=False)
 
 app = Flask(
-    name,
+    __name__,
     template_folder="templates",
     static_folder="static"
 )
