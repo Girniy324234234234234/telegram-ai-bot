@@ -18,7 +18,7 @@ bot = TeleBot(BOT_TOKEN, parse_mode="HTML")
 # FLASK APP
 # ========================
 app = Flask(
-    name,
+    __name__,
     template_folder="templates",
     static_folder="static"
 )
