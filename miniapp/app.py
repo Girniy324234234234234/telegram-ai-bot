@@ -20,7 +20,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 # MiniApp лежит в папке miniapp/
 app = Flask(
-    name,
+    __name__,
     static_folder="miniapp",
     static_url_path=""
 )
