@@ -1,34 +1,20 @@
 import os
-import uuid
+import base64
 import requests
-
 from flask import Flask, request, jsonify, render_template
 
-# =========================
-# CONFIG
-# =========================
+# ---------------- CONFIG ----------------
 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 HF_API_KEY = os.getenv("HF_API_KEY")
-HF_MODEL = os.getenv("HF_MODEL", "stabilityai/sdxl-turbo")
 
-if not HF_API_KEY:
-    raise RuntimeError("HF_API_KEY is not set")
+HF_MODEL = "stabilityai/stable-diffusion-2-1"
+HF_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}"
 
-BASE_DIR = os.path.dirname(__file__)
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-GENERATED_DIR = os.path.join(STATIC_DIR, "generated")
+# ---------------------------------------
 
-os.makedirs(GENERATED_DIR, exist_ok=True)
+app = Flask(__name__, template_folder="templates", static_folder="static")
 
-app = Flask(
-    __name__,
-    template_folder="templates",
-    static_folder="static"
-)
-
-# =========================
-# ROUTES
-# =========================
 
 @app.route("/")
 def index():
@@ -37,54 +23,46 @@ def index():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.get_json(force=True)
-    text = data.get("text", "").strip()
-
-    if not text:
-        return jsonify({"ok": False, "error": "empty prompt"}), 400
-
-    # -------- HF REQUEST --------
-    hf_url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-
-    headers = {
-        "Authorization": f"Bearer {HF_API_KEY}",
-        "Accept": "image/png"
-    }
-
-    payload = {
-        "inputs": f"sticker style, flat illustration, white outline, {text}"
-    }
-
     try:
-        resp = requests.post(
-            hf_url,
+        data = request.get_json(force=True)
+        prompt = data.get("text", "").strip()
+
+        if not prompt:
+            return jsonify({"ok": False, "error": "empty prompt"}), 400
+
+        headers = {
+            "Authorization": f"Bearer {HF_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "inputs": prompt
+        }
+
+        hf_response = requests.post(
+            HF_URL,
             headers=headers,
             json=payload,
-            timeout=60
+            timeout=120
         )
+
+        if hf_response.status_code != 200:
+            print("HF ERROR:", hf_response.text)
+            return jsonify({"ok": False, "error": "hf_error"}), 500
+
+        image_bytes = hf_response.content
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+        return jsonify({
+            "ok": True,
+            "image": image_base64
+        })
+
     except Exception as e:
-        print("HF REQUEST ERROR:", e)
-        return jsonify({"ok": False, "error": "hf request failed"}), 500
-
-    if resp.status_code != 200:
-        print("HF ERROR:", resp.text)
-        return jsonify({"ok": False, "error": "hf generation error"}), 500
-
-    # -------- SAVE IMAGE --------
-    filename = f"{uuid.uuid4()}.png"
-    filepath = os.path.join(GENERATED_DIR, filename)
-
-    with open(filepath, "wb") as f:
-        f.write(resp.content)
-
-    image_url = f"/static/generated/{filename}"
-
-    return jsonify({
-        "ok": True,
-        "url": image_url
-    })
+        print("SERVER ERROR:", str(e))
+        return jsonify({"ok": False, "error": "server_error"}), 500
 
 
-@app.route("/health")
-def health():
-    return "OK", 200
+if name == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
