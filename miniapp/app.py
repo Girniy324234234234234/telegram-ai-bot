@@ -116,6 +116,3 @@ def webapp_data(message):
 @app.route("/health")
 def health():
     return "OK", 200
-@app.route("/health", methods=["GET"])
-def health():
-    return "OK", 200
