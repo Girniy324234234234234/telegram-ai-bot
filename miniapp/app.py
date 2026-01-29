@@ -84,6 +84,6 @@ def send_to_chat():
 
 # ================= MAIN =====================
 
-if name == "__main__":
+if __name__ == "__main__":
     Thread(target=run_bot).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
