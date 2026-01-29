@@ -58,6 +58,6 @@ def generate():
         return jsonify({"ok": False}), 500
 
 
-if name == "__main__":
+if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
