@@ -1,75 +1,133 @@
 import os
-import uuid
 import base64
-from flask import Flask, render_template, request, jsonify
-from openai import OpenAI
+import requests
+from io import BytesIO
 
-# ========================
-# CONFIG
-# ========================
+from flask import Flask, request, jsonify
+import telebot
+from threading import Thread
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is not set")
+# ================== CONFIG ==================
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+HF_API_KEY = os.getenv("HF_API_KEY")
+HF_MODEL = os.getenv("HF_MODEL", "stabilityai/sdxl-turbo")
 
-app = Flask(
-    __name__,
-    template_folder="templates",
-    static_folder="static"
-)
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN is not set")
 
-GENERATED_DIR = os.path.join(app.static_folder, "generated")
-os.makedirs(GENERATED_DIR, exist_ok=True)
+if not HF_API_KEY:
+    raise RuntimeError("HF_API_KEY is not set")
 
-# ========================
-# ROUTES
-# ========================
+bot = telebot.TeleBot(BOT_TOKEN)
+app = Flask(__name__)
+
+# Храним последнее изображение для каждого чата
+LAST_IMAGE = {}
+
+# ================== TELEGRAM BOT ==================
+
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.send_message(
+        message.chat.id,
+        "👋 Привет!\n\n"
+        "🎨 Открой Mini App, сгенерируй стикер и отправь его сюда."
+    )
+
+@bot.message_handler(commands=["help"])
+def help_cmd(message):
+    bot.send_message(
+        message.chat.id,
+        "ℹ️ Используй Mini App для генерации стикеров.\n"
+        "Команда /start — начало."
+    )
+
+def run_bot():
+    bot.infinity_polling(skip_pending=True)
+
+# ================== FLASK ==================
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return "OK", 200
 
 
 @app.route("/generate", methods=["POST"])
 def generate():
+    """
+    Вызывается Mini App
+    {
+        "prompt": "кот в шапке",
+        "chat_id": 123456789
+    }
+    """
     data = request.get_json(force=True)
-    text = data.get("text", "").strip()
 
-    if not text:
-        return jsonify({"ok": False, "error": "Empty prompt"}), 400
+    prompt = data.get("prompt", "").strip()
+    chat_id = data.get("chat_id")
 
-    try:
-        result = client.images.generate(
-            model="gpt-image-1",
-            prompt=f"cute sticker, flat style, transparent background: {text}",
-            size="1024x1024"
-        )
+    if not prompt or not chat_id:
+        return jsonify({"error": "prompt or chat_id missing"}), 400
 
-        image_base64 = result.data[0].b64_json
-        image_bytes = base64.b64decode(image_base64)
+    # ===== HF IMAGE GENERATION =====
+    hf_url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
 
-        filename = f"{uuid.uuid4()}.png"
-        filepath = os.path.join(GENERATED_DIR, filename)
+    headers = {
+        "Authorization": f"Bearer {HF_API_KEY}",
+        "Accept": "image/png"
+    }
 
-        with open(filepath, "wb") as f:
-            f.write(image_bytes)
+    payload = {
+        "inputs": f"cute sticker style, flat illustration, white outline, {prompt}"
+    }
 
-        image_url = request.host_url.rstrip("/") + f"/static/generated/{filename}"
+    resp = requests.post(hf_url, headers=headers, json=payload, timeout=60)
 
+    if resp.status_code != 200:
         return jsonify({
-            "ok": True,
-            "url": image_url
-        })
-
-    except Exception as e:
-        return jsonify({
-            "ok": False,
-            "error": str(e)
+            "error": "HF generation failed",
+            "details": resp.text
         }), 500
 
+    image_bytes = resp.content
+    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-@app.route("/health")
-def health():
-    return "OK", 200
+    LAST_IMAGE[str(chat_id)] = image_base64
+
+    return jsonify({"ok": True})
+
+
+@app.route("/send_to_chat", methods=["POST"])
+def send_to_chat():
+    """
+    Вызывается Mini App после генерации
+    {
+        "chat_id": 123456789
+    }
+    """
+    data = request.get_json(force=True)
+    chat_id = str(data.get("chat_id"))
+
+    image_base64 = LAST_IMAGE.get(chat_id)
+
+    if not image_base64:
+        return jsonify({"error": "No image to send"}), 400
+
+    image_bytes = base64.b64decode(image_base64)
+
+    bot.send_photo(
+        chat_id=int(chat_id),
+        photo=image_bytes,
+        caption="🎨 Стикер из Mini App"
+    )
+
+    return jsonify({"ok": True})
+
+# ================== MAIN ==================
+
+if name == "__main__":
+    Thread(target=run_bot).start()
+
+    port = int(os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
