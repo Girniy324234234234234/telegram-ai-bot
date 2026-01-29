@@ -1,54 +1,191 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Sticker Generator</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sticker Generator</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(1200px 600px at top, #1f1f2e, #0b0b12);
+  color: #fff;
+  height: 100%;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+}
+
+h1 {
+  margin-top: 40px;
+  font-size: 28px;
+  text-align: center;
+}
+
+.subtitle {
+  opacity: 0.8;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+input {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: none;
+  outline: none;
+  background: #111;
+  color: #fff;
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+button {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: none;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.generate {
+  background: linear-gradient(135deg, #7b6cff, #9a8cff);
+  color: #fff;
+}
+
+.send {
+  background: #2ecc71;
+  color: #000;
+}
+
+.preview {
+  margin-top: 24px;
+  display: none;
+  text-align: center;
+}
+
+.preview img {
+  max-width: 100%;
+  border-radius: 20px;
+  background: #000;
+}
+
+.footer {
+  margin-top: auto;
+  opacity: 0.4;
+  font-size: 12px;
+  padding: 20px;
+}
+</style>
 </head>
 
 <body>
-  <h2>🎨 Генерация стикера</h2>
+<div class="app">
 
-  <input id="text" placeholder="Бобер в кедах" />
-  <button onclick="generate()">Сгенерировать</button>
+<h1>🎨 Генерация стикера</h1>
+<div class="subtitle">Опиши идею — AI сделает магию</div>
 
-  <p id="status"></p>
-  <img id="img" style="display:none; max-width:100%" />
+<div class="card">
+  <input id="text" placeholder="Например: Бобёр в шапке" />
+
+  <button class="generate" onclick="generate()">Сгенерировать</button>
+
+  <button class="send" onclick="sendToChat()" disabled id="sendBtn">
+    📤 Отправить в чат
+  </button>
+</div>
+
+<div class="preview" id="preview">
+  <img id="result" />
+</div>
+
+<div class="footer">
+  Powered by AI · Telegram Mini App
+</div>
+
+</div>
 
 <script>
-const tg = window.Telegram.WebApp;
-tg.expand();
+const tg = window.Telegram?.WebApp;
+if (tg) tg.expand();
+
+let lastImageUrl = null;
 
 async function generate() {
   const text = document.getElementById("text").value.trim();
-  const status = document.getElementById("status");
-  const img = document.getElementById("img");
-
   if (!text) {
-    status.innerText = "Введите описание";
+    alert("Введите описание");
     return;
   }
 
-  status.innerText = "Генерация...";
-  img.style.display = "none";
+  document.getElementById("preview").style.display = "none";
+  document.getElementById("sendBtn").disabled = true;
 
-  const res = await fetch("/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text })
-  });
+  try {
+    const res = await fetch("/generate", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ text })
+    });
 
-  const data = await res.json();
+    const data = await res.json();
 
-  if (!data.ok) {
-    status.innerText = "Ошибка генерации";
+    if (!data.ok) {
+      alert(data.error || "Ошибка генерации");
+      return;
+    }
+
+    lastImageUrl = data.url;
+    document.getElementById("result").src = data.url;
+    document.getElementById("preview").style.display = "block";
+    document.getElementById("sendBtn").disabled = false;
+
+  } catch (e) {
+    alert("Ошибка соединения");
+  }
+}
+
+function sendToChat() {
+  if (!lastImageUrl) return;
+
+  if (!window.Telegram?.WebApp) {
+    alert("Открой через Telegram");
     return;
   }
 
-  img.src = "data:image/png;base64," + data.image;
-  img.style.display = "block";
-  status.innerText = "Готово";
+  Telegram.WebApp.sendData(JSON.stringify({
+    type: "sticker",
+    url: lastImageUrl
+  }));
+
+  Telegram.WebApp.close();
 }
 </script>
+
 </body>
 </html>
