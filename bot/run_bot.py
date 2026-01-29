@@ -139,6 +139,21 @@ def save_memory(uid, history):
 def cmd_start(m):
     bot.send_message(m.chat.id, t("ru", "welcome"), parse_mode="Markdown")
 
+@bot.message_handler(content_types=["web_app_data"])
+def handle_web_app(message):
+    import json
+
+    data = json.loads(message.web_app_data.data)
+
+    if data.get("type") == "send_image":
+        image_url = data.get("image_url")
+
+        bot.send_photo(
+            chat_id=message.chat.id,
+            photo=image_url,
+            caption="🎨 Стикер из Mini App"
+        )
+
 @bot.message_handler(commands=["help"])
 def cmd_help(m):
     bot.send_message(m.chat.id, t("ru", "help"), parse_mode="Markdown")
