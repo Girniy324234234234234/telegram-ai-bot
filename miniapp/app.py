@@ -1,12 +1,15 @@
 import os
 import base64
 import requests
-from flask import Flask, request, jsonify, send_from_directory
+from threading import Thread
+
+from flask import Flask, request, jsonify, render_template
 import telebot
 
 # ================== CONFIG ==================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # для survey
 HF_API_KEY = os.getenv("HF_API_KEY")
 HF_MODEL = os.getenv("HF_MODEL", "stabilityai/sdxl-turbo")
 
@@ -16,37 +19,53 @@ if not BOT_TOKEN:
 if not HF_API_KEY:
     raise RuntimeError("HF_API_KEY is not set")
 
-bot = telebot.TeleBot(BOT_TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
+app = Flask(__name__)
 
-# MiniApp лежит в папке miniapp/
-app = Flask(
-    __name__,
-    static_folder="miniapp",
-    static_url_path=""
-)
-
-# Храним последнее изображение для чата
 LAST_IMAGE = {}
+
+# ================== TELEGRAM BOT ==================
+
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.send_message(
+        message.chat.id,
+        "👋 Добро пожаловать в Astro AI Bot\n\n"
+        "🎨 Открой Mini App для генерации стикеров."
+    )
+
+@bot.message_handler(commands=["help"])
+def help_cmd(message):
+    bot.send_message(
+        message.chat.id,
+        "ℹ️ Используй Mini App для генерации стикеров."
+    )
+
+def run_bot():
+    # ⚠️ polling ТОЛЬКО один раз
+    bot.infinity_polling(skip_pending=True)
 
 # ================== MINI APP ==================
 
 @app.route("/")
 def index():
-    # ❗️ВАЖНО — отдаём HTML, а не "OK"
-    return send_from_directory("miniapp", "index.html")
+    # ✅ Mini App ВСЕГДА открывает /
+    return render_template("index.html")
 
+@app.route("/health")
+def health():
+    return "OK", 200
 
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.get_json(force=True)
 
-    prompt = data.get("text", "").strip()
+    prompt = data.get("prompt", "").strip()
     chat_id = data.get("chat_id")
 
     if not prompt or not chat_id:
         return jsonify({"error": "prompt or chat_id missing"}), 400
 
-    # ===== HuggingFace generation =====
     hf_url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
     headers = {
         "Authorization": f"Bearer {HF_API_KEY}",
@@ -54,7 +73,7 @@ def generate():
     }
 
     payload = {
-        "inputs": f"cute telegram sticker, flat illustration, white outline, {prompt}"
+        "inputs": f"cute sticker style, flat illustration, white outline, {prompt}"
     }
 
     resp = requests.post(hf_url, headers=headers, json=payload, timeout=60)
@@ -65,25 +84,19 @@ def generate():
             "details": resp.text
         }), 500
 
-    image_bytes = resp.content
-    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-
+    image_base64 = base64.b64encode(resp.content).decode("utf-8")
     LAST_IMAGE[str(chat_id)] = image_base64
 
-    return jsonify({
-        "ok": True,
-        "image": image_base64
-    })
+    return jsonify({"ok": True})
 
-
-@app.route("/send", methods=["POST"])
+@app.route("/send_to_chat", methods=["POST"])
 def send_to_chat():
     data = request.get_json(force=True)
     chat_id = str(data.get("chat_id"))
 
     image_base64 = LAST_IMAGE.get(chat_id)
     if not image_base64:
-        return jsonify({"error": "no image"}), 400
+        return jsonify({"error": "No image"}), 400
 
     image_bytes = base64.b64decode(image_base64)
 
@@ -95,9 +108,10 @@ def send_to_chat():
 
     return jsonify({"ok": True})
 
+# ================== MAIN ==================
 
-# ================== HEALTH ==================
+if name == "__main__":
+    Thread(target=run_bot, daemon=True).start()
 
-@app.route("/health")
-def health():
-    return "OK", 200
+    port = int(os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
