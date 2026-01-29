@@ -3,7 +3,7 @@ import uuid
 import base64
 
 from flask import Flask, render_template, request, jsonify
-from telebot import TeleBot
+from telebot import TeleBot, types
 
 # ========================
 # CONFIG
@@ -17,19 +17,19 @@ if not BOT_TOKEN:
 bot = TeleBot(BOT_TOKEN, threaded=False)
 
 app = Flask(
-    __name__,
+    name,
     template_folder="templates",
     static_folder="static"
 )
 
-# хранение последней картинки по chat_id
-LAST_IMAGE = {}
+# image_id -> base64
+IMAGES = {}
 
 # ========================
-# ROUTES
+# MINI APP
 # ========================
 
-@app.route("/", methods=["GET"])
+@app.route("/")
 def index():
     return render_template("index.html")
 
@@ -37,73 +37,85 @@ def index():
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.get_json(force=True)
+    text = data.get("text", "").strip()
 
-    prompt = data.get("prompt", "").strip()
-    chat_id = data.get("chat_id")
+    if not text:
+        return jsonify({"ok": False, "error": "Empty prompt"}), 400
 
-    if not prompt or not chat_id:
-        return jsonify({"error": "prompt or chat_id missing"}), 400
+    # 🔴 ЗАГЛУШКА (вместо AI)
+    fake_png = base64.b64encode(b"fake-image-bytes").decode()
 
-    # ⚠️ ЗДЕСЬ ТВОЯ РЕАЛЬНАЯ AI-ГЕНЕРАЦИЯ
-    # сейчас ожидаем base64 от фронта или AI
-    image_base64 = data.get("image_base64")
+    image_id = str(uuid.uuid4())
+    IMAGES[image_id] = fake_png
 
-    if not image_base64:
-        return jsonify({"error": "image_base64 missing"}), 400
-
-    LAST_IMAGE[chat_id] = image_base64
-
-    return jsonify({"ok": True})
+    return jsonify({
+        "ok": True,
+        "url": f"/image/{image_id}"
+    })
 
 
-@app.route("/send_to_chat", methods=["POST"])
-def send_to_chat():
-    data = request.get_json(force=True)
-    chat_id = data.get("chat_id")
+@app.route("/image/<image_id>")
+def image(image_id):
+    img = IMAGES.get(image_id)
+    if not img:
+        return "Not found", 404
 
-    if not chat_id:
-        return jsonify({"error": "chat_id missing"}), 400
-
-    image_base64 = LAST_IMAGE.get(chat_id)
-    if not image_base64:
-        return jsonify({"error": "no image generated"}), 400
-
-    image_bytes = base64.b64decode(image_base64)
-
-    bot.send_photo(
-        chat_id=chat_id,
-        photo=image_bytes,
-        caption="🎨 Стикер из Mini App"
-    )
-
-    return jsonify({"ok": True})
+    return base64.b64decode(img), 200, {
+        "Content-Type": "image/png",
+        "Cache-Control": "no-store"
+    }
 
 
 # ========================
-# BOT COMMAND
+# BOT
 # ========================
 
 @bot.message_handler(commands=["start"])
 def start(message):
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton(
+            text="🎨 Открыть Mini App",
+            web_app=types.WebAppInfo(url=MINIAPP_URL)
+        )
+    )
+
     bot.send_message(
         message.chat.id,
         "👋 Открой Mini App и сгенерируй стикер",
-        reply_markup={
-            "inline_keyboard": [[
-                {
-                    "text": "🎨 Открыть Mini App",
-                    "web_app": {
-                        "url": MINIAPP_URL
-                    }
-                }
-            ]]
-        }
+        reply_markup=kb
     )
+
+
+@bot.message_handler(content_types=["web_app_data"])
+def webapp_data(message):
+    try:
+        payload = eval(message.web_app_data.data)
+        image_url = payload.get("url")
+
+        if not image_url:
+            bot.send_message(message.chat.id, "❌ Нет изображения")
+            return
+
+        full_url = request.host_url.rstrip("/") + image_url
+
+        bot.send_photo(
+            chat_id=message.chat.id,
+            photo=full_url,
+            caption="🎨 Стикер из Mini App"
+        )
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Ошибка: {e}")
 
 
 # ========================
 # HEALTHCHECK
 # ========================
+
+@app.route("/health")
+def health():
+    return "OK", 200
 @app.route("/health", methods=["GET"])
 def health():
     return "OK", 200
