@@ -21,7 +21,7 @@ def run_flask():
     )
 
 
-if name == "__main__":
+if __name__ == "__main__":
     t1 = threading.Thread(target=run_bot)
     t2 = threading.Thread(target=run_flask)
 
