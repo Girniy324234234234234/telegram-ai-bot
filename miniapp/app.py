@@ -15,7 +15,7 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = Flask(
-    __name__,
+    name,
     template_folder="templates",
     static_folder="static"
 )
@@ -41,10 +41,9 @@ def generate():
         return jsonify({"ok": False, "error": "Empty prompt"}), 400
 
     try:
-        # 🔥 РЕАЛЬНАЯ ГЕНЕРАЦИЯ
         result = client.images.generate(
             model="gpt-image-1",
-            prompt=f"sticker style, cute, flat, transparent background: {text}",
+            prompt=f"cute sticker, flat style, transparent background: {text}",
             size="1024x1024"
         )
 
@@ -74,12 +73,3 @@ def generate():
 @app.route("/health")
 def health():
     return "OK", 200
-
-
-# ========================
-# START
-# ========================
-
-if name == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
