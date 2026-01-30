@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sticker Generator</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+:root {
+  --bg: #0e0f1a;
+  --card: #181a2b;
+  --accent: #7b6cff;
+  --text: #ffffff;
+  --muted: #a0a3bd;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1b1e3c, var(--bg));
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.app {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+
+h1 {
+  font-size: 22px;
+  margin: 0 0 6px;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  margin-bottom: 14px;
+  background: #0f1225;
+  color: white;
+}
+
+button {
+  width: 100%;
+  padding: 16px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #7b6cff, #9b8cff);
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+.loader {
+  display: none;
+  margin: 20px 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+.image-box {
+  display: none;
+  margin-top: 20px;
+  text-align: center;
+}
+
+.image-box img {
+  max-width: 100%;
+  border-radius: 20px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.actions button {
+  flex: 1;
+  padding: 12px;
+  font-size: 14px;
+}
+
+.footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <div class="card">
+    <h1>🎨 Генерация стикера</h1>
+    <div class="subtitle">Опиши стикер — AI сделает магию</div>
+
+    <input id="prompt" placeholder="Бобер в шапке" />
+
+    <button id="generateBtn" onclick="generate()">Сгенерировать</button>
+
+    <div class="loader" id="loader">✨ AI рисует стикер…</div>
+
+    <div class="image-box" id="imageBox">
+      <img id="resultImage" />
+
+      <div class="actions">
+        <button onclick="downloadImage()">📥 Скачать</button>
+        <button onclick="sendToChat()">📤 В чат</button>
+        <button onclick="saveSticker()">⭐ Сохранить</button>
+      </div>
+    </div>
+
+    <div class="footer">Powered by AI · Telegram Mini App</div>
+  </div>
+</div>
+
+<script>
+Telegram.WebApp.ready();
+Telegram.WebApp.expand();
+
+let currentImageUrl = null;
+
+async function generate() {
+  const text = document.getElementById("prompt").value.trim();
+  if (!text) return;
+
+  document.getElementById("loader").style.display = "block";
+  document.getElementById("imageBox").style.display = "none";
+  document.getElementById("generateBtn").disabled = true;
+
+  try {
+    const res = await fetch("/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) throw new Error(data.error);
+
+    currentImageUrl = data.url;
+    document.getElementById("resultImage").src = data.url;
+    document.getElementById("imageBox").style.display = "block";
+
+  } catch (e) {
+    alert("Ошибка генерации");
+  }
+
+  document.getElementById("loader").style.display = "none";
+  document.getElementById("generateBtn").disabled = false;
+}
+
+function downloadImage() {
+  if (!currentImageUrl) return;
+  const a = document.createElement("a");
+  a.href = currentImageUrl;
+  a.download = "sticker.png";
+  a.click();
+}
+
+function sendToChat() {
+  if (!currentImageUrl) return;
+  Telegram.WebApp.sendData(JSON.stringify({
+    type: "sticker",
+    url: currentImageUrl
+  }));
+}
+
+function saveSticker() {
+  if (!currentImageUrl) return;
+  const saved = JSON.parse(localStorage.getItem("stickers") || "[]");
+  saved.unshift(currentImageUrl);
+  localStorage.setItem("stickers", JSON.stringify(saved.slice(0, 5)));
+  Telegram.WebApp.showPopup({
+    message: "⭐ Стикер сохранён"
+  });
+}
+</script>
+</body>
+</html>
